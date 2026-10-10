@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
-using Supabase;
-using Supabase.Gotrue;
-using Postgrest;
-using static Supabase.Postgrest.Constants;
+using UnityEngine.Networking;
+using Newtonsoft.Json;
 
 namespace ArrowGo.Backend
 {
     /// <summary>
-    /// Singleton manager connecting Unity to the Supabase Cloud backend.
-    /// Handles authentication, leaderboard retrieval, score submissions, and profile synchronization.
+    /// Singleton manager connecting Unity directly to the Supabase Cloud backend via native REST API (UnityWebRequest).
+    /// Works out-of-the-box with zero third-party DLLs or NuGet dependencies.
+    /// Handles guest profiles, leaderboard retrieval, score submissions, and color/level synchronization.
     /// </summary>
     public class SupabaseManager : MonoBehaviour
     {
@@ -24,7 +24,6 @@ namespace ArrowGo.Backend
         [Tooltip("Your Supabase Anon / Public Key")]
         [SerializeField] private string supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0dXhxZmtvbWlxYnd6bGd5Zml0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDY1OTgsImV4cCI6MjEwNTcyMjU5OH0.CBu7W2KCUiLf0NDcTli51zvAFiKZKkWabmQDxG4jZAc";
 
-        private Client _client;
         public PlayerProfile CurrentProfile { get; private set; }
         public bool IsInitialized { get; private set; }
 
@@ -48,22 +47,25 @@ namespace ArrowGo.Backend
         }
 
         /// <summary>
-        /// Initializes the Supabase client and signs in the guest player.
+        /// Initializes local player credentials and syncs with Supabase.
         /// </summary>
         public async Task InitializeSupabaseAsync()
         {
             try
             {
-                var options = new SupabaseOptions
+                string playerId = PlayerPrefs.GetString("arrow_player_id", "");
+                string username = PlayerPrefs.GetString("arrow_player_username", "");
+
+                if (string.IsNullOrEmpty(playerId))
                 {
-                    AutoRefreshToken = true,
-                    PersistSession = true
-                };
+                    playerId = Guid.NewGuid().ToString();
+                    username = $"Archer_{UnityEngine.Random.Range(1000, 9999)}";
+                    PlayerPrefs.SetString("arrow_player_id", playerId);
+                    PlayerPrefs.SetString("arrow_player_username", username);
+                    PlayerPrefs.Save();
+                }
 
-                _client = new Client(supabaseUrl, supabaseAnonKey, options);
-                await _client.InitializeAsync();
-
-                await AuthenticateGuestUserAsync();
+                await FetchOrCreateProfileAsync(playerId, username);
                 IsInitialized = true;
                 Debug.Log("<color=green>[Supabase] Connected to project: btuxqfkomiqbwzlgyfit</color>");
             }
@@ -74,65 +76,59 @@ namespace ArrowGo.Backend
             }
         }
 
-        /// <summary>
-        /// Authenticates the user using persistent guest credentials stored in PlayerPrefs.
-        /// </summary>
-        private async Task AuthenticateGuestUserAsync()
+        private async Task FetchOrCreateProfileAsync(string playerId, string defaultUsername)
         {
-            string guestEmail = PlayerPrefs.GetString("arrow_guest_email", "");
-            string guestPassword = PlayerPrefs.GetString("arrow_guest_pwd", "");
+            string url = $"{supabaseUrl}/rest/v1/arrow_profiles?id=eq.{playerId}&select=*";
+            string json = await GetJsonAsync(url);
 
-            if (string.IsNullOrEmpty(guestEmail))
+            var profiles = JsonConvert.DeserializeObject<List<PlayerProfile>>(json);
+            if (profiles != null && profiles.Count > 0)
             {
-                string deviceId = SystemInfo.deviceUniqueIdentifier.Length >= 8 
-                    ? SystemInfo.deviceUniqueIdentifier.Substring(0, 8) 
-                    : "player";
-                guestEmail = $"guest_{deviceId}_{Guid.NewGuid().ToString().Substring(0, 5)}@arrowgo.local";
-                guestPassword = Guid.NewGuid().ToString("N");
-
-                var session = await _client.Auth.SignUp(guestEmail, guestPassword);
-                PlayerPrefs.SetString("arrow_guest_email", guestEmail);
-                PlayerPrefs.SetString("arrow_guest_pwd", guestPassword);
-                PlayerPrefs.Save();
-
-                CurrentProfile = new PlayerProfile
-                {
-                    Id = session.User.Id,
-                    Username = $"Archer_{UnityEngine.Random.Range(1000, 9999)}",
-                    HighScore = 0,
-                    XP = 0,
-                    EloRating = 1000,
-                    RankTier = "Bronze",
-                    ArrowColorHex = "#00FFCC",
-                    GamesPlayed = 0,
-                    Wins = 0,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                await _client.From<PlayerProfile>().Insert(CurrentProfile);
+                CurrentProfile = profiles[0];
             }
             else
             {
-                var session = await _client.Auth.SignIn(guestEmail, guestPassword);
-                await FetchCurrentProfileAsync(session.User.Id);
+                // Create initial profile in cloud
+                var newProfile = new PlayerProfile
+                {
+                    id = playerId,
+                    username = defaultUsername,
+                    high_score = 0,
+                    xp = 0,
+                    elo_rating = 1000,
+                    rank_tier = "Bronze",
+                    arrow_color_hex = "#00FFCC",
+                    games_played = 0,
+                    wins = 0,
+                    current_level = 1,
+                    updated_at = DateTime.UtcNow.ToString("o")
+                };
+
+                string insertUrl = $"{supabaseUrl}/rest/v1/arrow_profiles";
+                string payload = JsonConvert.SerializeObject(newProfile);
+                await PostJsonAsync(insertUrl, payload, returnRepresentation: true);
+
+                CurrentProfile = newProfile;
             }
 
             OnProfileLoaded?.Invoke(CurrentProfile);
         }
 
         /// <summary>
-        /// Fetches the profile data for a specific user ID.
+        /// Refetches the profile for the given user ID.
         /// </summary>
         public async Task FetchCurrentProfileAsync(string userId)
         {
             try
             {
-                var response = await _client.From<PlayerProfile>()
-                    .Where(p => p.Id == userId)
-                    .Single();
-
-                CurrentProfile = response;
-                OnProfileLoaded?.Invoke(CurrentProfile);
+                string url = $"{supabaseUrl}/rest/v1/arrow_profiles?id=eq.{userId}&select=*";
+                string json = await GetJsonAsync(url);
+                var profiles = JsonConvert.DeserializeObject<List<PlayerProfile>>(json);
+                if (profiles != null && profiles.Count > 0)
+                {
+                    CurrentProfile = profiles[0];
+                    OnProfileLoaded?.Invoke(CurrentProfile);
+                }
             }
             catch (Exception ex)
             {
@@ -141,18 +137,16 @@ namespace ArrowGo.Backend
         }
 
         /// <summary>
-        /// Retrieves the global top players ordered by high score.
+        /// Retrieves the global leaderboard ordered by high score.
         /// </summary>
         public async Task<List<PlayerProfile>> GetTopLeaderboardAsync(int limit = 50)
         {
             try
             {
-                var response = await _client.From<PlayerProfile>()
-                    .Order(p => p.HighScore, Ordering.Descending)
-                    .Limit(limit)
-                    .Get();
-
-                return response.Models;
+                string url = $"{supabaseUrl}/rest/v1/arrow_profiles?select=*&order=high_score.desc&limit={limit}";
+                string json = await GetJsonAsync(url);
+                var list = JsonConvert.DeserializeObject<List<PlayerProfile>>(json);
+                return list ?? new List<PlayerProfile>();
             }
             catch (Exception ex)
             {
@@ -162,7 +156,7 @@ namespace ArrowGo.Backend
         }
 
         /// <summary>
-        /// Submits a match result and updates high score, Elo, and rank tier via PostgreSQL RPC.
+        /// Submits match outcome and recalculates Elo/rank tier via PostgreSQL RPC function.
         /// </summary>
         public async Task SubmitMatchResultAsync(int matchScore, bool isWin, int xpEarned)
         {
@@ -170,7 +164,8 @@ namespace ArrowGo.Backend
 
             try
             {
-                var rpcParams = new Dictionary<string, object>
+                string rpcUrl = $"{supabaseUrl}/rest/v1/rpc/submit_arrow_match_result";
+                var rpcData = new Dictionary<string, object>
                 {
                     { "player_id", CurrentProfile.Id },
                     { "match_score", matchScore },
@@ -178,7 +173,8 @@ namespace ArrowGo.Backend
                     { "xp_earned", xpEarned }
                 };
 
-                await _client.Rpc("submit_arrow_match_result", rpcParams);
+                string payload = JsonConvert.SerializeObject(rpcData);
+                await PostJsonAsync(rpcUrl, payload);
                 await FetchCurrentProfileAsync(CurrentProfile.Id);
             }
             catch (Exception ex)
@@ -188,7 +184,7 @@ namespace ArrowGo.Backend
         }
 
         /// <summary>
-        /// Syncs arrow color hex code to the cloud profile.
+        /// Syncs arrow customization color hex code to the cloud.
         /// </summary>
         public async Task SyncArrowColorAsync(string hexColor)
         {
@@ -197,13 +193,14 @@ namespace ArrowGo.Backend
             try
             {
                 CurrentProfile.ArrowColorHex = hexColor;
-                CurrentProfile.UpdatedAt = DateTime.UtcNow;
+                string url = $"{supabaseUrl}/rest/v1/arrow_profiles?id=eq.{CurrentProfile.Id}";
+                var payload = JsonConvert.SerializeObject(new Dictionary<string, string>
+                {
+                    { "arrow_color_hex", hexColor },
+                    { "updated_at", DateTime.UtcNow.ToString("o") }
+                });
 
-                await _client.From<PlayerProfile>()
-                    .Where(p => p.Id == CurrentProfile.Id)
-                    .Set(p => p.ArrowColorHex, hexColor)
-                    .Update();
-
+                await PatchJsonAsync(url, payload);
                 Debug.Log($"[Supabase] Synced arrow color '{hexColor}' to cloud.");
             }
             catch (Exception ex)
@@ -213,7 +210,7 @@ namespace ArrowGo.Backend
         }
 
         /// <summary>
-        /// Syncs current level progression to Supabase.
+        /// Syncs campaign level progression to Supabase.
         /// </summary>
         public async Task SyncCurrentLevelAsync(int level)
         {
@@ -222,13 +219,14 @@ namespace ArrowGo.Backend
             try
             {
                 CurrentProfile.CurrentLevel = level;
-                CurrentProfile.UpdatedAt = DateTime.UtcNow;
+                string url = $"{supabaseUrl}/rest/v1/arrow_profiles?id=eq.{CurrentProfile.Id}";
+                var payload = JsonConvert.SerializeObject(new Dictionary<string, object>
+                {
+                    { "current_level", level },
+                    { "updated_at", DateTime.UtcNow.ToString("o") }
+                });
 
-                await _client.From<PlayerProfile>()
-                    .Where(p => p.Id == CurrentProfile.Id)
-                    .Set(p => p.CurrentLevel, level)
-                    .Update();
-
+                await PatchJsonAsync(url, payload);
                 Debug.Log($"[Supabase] Synced level {level} to cloud.");
             }
             catch (Exception ex)
@@ -236,5 +234,82 @@ namespace ArrowGo.Backend
                 Debug.LogError($"[Supabase] Sync level error: {ex.Message}");
             }
         }
+
+        #region HTTP REST Client Helpers
+
+        private void ApplySupabaseHeaders(UnityWebRequest req)
+        {
+            req.SetRequestHeader("apikey", supabaseAnonKey);
+            req.SetRequestHeader("Authorization", $"Bearer {supabaseAnonKey}");
+        }
+
+        private async Task<string> GetJsonAsync(string url)
+        {
+            using var req = UnityWebRequest.Get(url);
+            ApplySupabaseHeaders(req);
+            req.SetRequestHeader("Accept", "application/json");
+
+            await SendWebRequestAsync(req);
+
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception($"HTTP GET {req.responseCode}: {req.error} | {req.downloadHandler.text}");
+            }
+
+            return req.downloadHandler.text;
+        }
+
+        private async Task<string> PostJsonAsync(string url, string jsonBody, bool returnRepresentation = false)
+        {
+            using var req = new UnityWebRequest(url, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            ApplySupabaseHeaders(req);
+
+            if (returnRepresentation)
+            {
+                req.SetRequestHeader("Prefer", "return=representation");
+            }
+
+            await SendWebRequestAsync(req);
+
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception($"HTTP POST {req.responseCode}: {req.error} | {req.downloadHandler.text}");
+            }
+
+            return req.downloadHandler.text;
+        }
+
+        private async Task<string> PatchJsonAsync(string url, string jsonBody)
+        {
+            using var req = new UnityWebRequest(url, "PATCH");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+            req.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
+            ApplySupabaseHeaders(req);
+
+            await SendWebRequestAsync(req);
+
+            if (req.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception($"HTTP PATCH {req.responseCode}: {req.error} | {req.downloadHandler.text}");
+            }
+
+            return req.downloadHandler.text;
+        }
+
+        private Task<UnityWebRequest> SendWebRequestAsync(UnityWebRequest req)
+        {
+            var tcs = new TaskCompletionSource<UnityWebRequest>();
+            var op = req.SendWebRequest();
+            op.completed += _ => tcs.SetResult(req);
+            return tcs.Task;
+        }
+
+        #endregion
     }
 }

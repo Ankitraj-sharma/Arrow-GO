@@ -1,48 +1,64 @@
 using System;
 using Newtonsoft.Json;
-using Supabase.Postgrest.Attributes;
-using Supabase.Postgrest.Models;
 
 namespace ArrowGo.Backend
 {
     /// <summary>
     /// Represents the player profile stored in Supabase's 'arrow_profiles' table.
+    /// Serialized cleanly with Newtonsoft.Json or Unity JsonUtility.
     /// </summary>
-    [Table("arrow_profiles")]
-    public class PlayerProfile : BaseModel
+    [System.Serializable]
+    public class PlayerProfile
     {
-        [PrimaryKey("id", false)]
-        public string Id { get; set; }
+        [JsonProperty("id")]
+        public string id;
 
-        [Column("username")]
-        public string Username { get; set; }
+        [JsonProperty("username")]
+        public string username;
 
-        [Column("high_score")]
-        public int HighScore { get; set; }
+        [JsonProperty("high_score")]
+        public int high_score;
 
-        [Column("xp")]
-        public int XP { get; set; }
+        [JsonProperty("xp")]
+        public int xp;
 
-        [Column("elo_rating")]
-        public int EloRating { get; set; }
+        [JsonProperty("elo_rating")]
+        public int elo_rating;
 
-        [Column("rank_tier")]
-        public string RankTier { get; set; }
+        [JsonProperty("rank_tier")]
+        public string rank_tier;
 
-        [Column("arrow_color_hex")]
-        public string ArrowColorHex { get; set; }
+        [JsonProperty("arrow_color_hex")]
+        public string arrow_color_hex;
 
-        [Column("games_played")]
-        public int GamesPlayed { get; set; }
+        [JsonProperty("games_played")]
+        public int games_played;
 
-        [Column("wins")]
-        public int Wins { get; set; }
+        [JsonProperty("wins")]
+        public int wins;
 
-        [Column("current_level")]
-        public int CurrentLevel { get; set; }
+        [JsonProperty("current_level")]
+        public int current_level;
 
-        [Column("updated_at")]
-        public DateTime UpdatedAt { get; set; }
+        [JsonProperty("updated_at")]
+        public string updated_at;
+
+        // Convenient C# Property accessors matching existing game code
+        [JsonIgnore] public string Id { get => id; set => id = value; }
+        [JsonIgnore] public string Username { get => username; set => username = value; }
+        [JsonIgnore] public int HighScore { get => high_score; set => high_score = value; }
+        [JsonIgnore] public int XP { get => xp; set => xp = value; }
+        [JsonIgnore] public int EloRating { get => elo_rating; set => elo_rating = value; }
+        [JsonIgnore] public string RankTier { get => rank_tier ?? "Bronze"; set => rank_tier = value; }
+        [JsonIgnore] public string ArrowColorHex { get => arrow_color_hex ?? "#00FFCC"; set => arrow_color_hex = value; }
+        [JsonIgnore] public int GamesPlayed { get => games_played; set => games_played = value; }
+        [JsonIgnore] public int Wins { get => wins; set => wins = value; }
+        [JsonIgnore] public int CurrentLevel { get => current_level; set => current_level = value; }
+        [JsonIgnore] public DateTime UpdatedAt 
+        { 
+            get => DateTime.TryParse(updated_at, out var dt) ? dt : DateTime.UtcNow; 
+            set => updated_at = value.ToString("o"); 
+        }
     }
 
     public enum RankTierType
