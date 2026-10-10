@@ -8,7 +8,8 @@ namespace ArrowGo.Gameplay
     {
         MainMenu,
         Playing,
-        GameOver
+        GameOver,
+        LevelWon
     }
 
     /// <summary>
@@ -50,6 +51,11 @@ namespace ArrowGo.Gameplay
                 arrow.OnArrowCrashed += HandleArrowCrashed;
             }
 
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.OnLevelCompleted += HandleLevelCompleted;
+            }
+
             SetState(GameState.MainMenu);
         }
 
@@ -60,12 +66,22 @@ namespace ArrowGo.Gameplay
                 arrow.OnScoreGained -= HandleScoreGained;
                 arrow.OnArrowCrashed -= HandleArrowCrashed;
             }
+
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.OnLevelCompleted -= HandleLevelCompleted;
+            }
         }
 
         public void StartGame()
         {
             _currentScore = 0;
             OnScoreUpdated?.Invoke(_currentScore);
+
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.SetupLevel(0f);
+            }
 
             if (spawner != null) spawner.ResetTrack();
             if (arrow != null) arrow.ResetArrow(Vector3.zero);
@@ -95,6 +111,20 @@ namespace ArrowGo.Gameplay
             if (SupabaseManager.Instance != null && SupabaseManager.Instance.IsInitialized)
             {
                 await SupabaseManager.Instance.SubmitMatchResultAsync(_currentScore, isWin, xpEarned);
+            }
+        }
+
+        private async void HandleLevelCompleted(int level, int stars)
+        {
+            SetState(GameState.LevelWon);
+
+            int xpEarned = (_currentScore * 3) + (stars * 20);
+            Debug.Log($"<color=green>[GameManager] Level {level} Cleared! Stars: {stars}, XP: {xpEarned}</color>");
+
+            // Push Win result to Supabase
+            if (SupabaseManager.Instance != null && SupabaseManager.Instance.IsInitialized)
+            {
+                await SupabaseManager.Instance.SubmitMatchResultAsync(_currentScore, true, xpEarned);
             }
         }
 

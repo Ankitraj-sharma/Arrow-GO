@@ -211,5 +211,30 @@ namespace ArrowGo.Backend
                 Debug.LogError($"[Supabase] Sync arrow color error: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Syncs current level progression to Supabase.
+        /// </summary>
+        public async Task SyncCurrentLevelAsync(int level)
+        {
+            if (CurrentProfile == null) return;
+
+            try
+            {
+                CurrentProfile.CurrentLevel = level;
+                CurrentProfile.UpdatedAt = DateTime.UtcNow;
+
+                await _client.From<PlayerProfile>()
+                    .Where(p => p.Id == CurrentProfile.Id)
+                    .Set(p => p.CurrentLevel, level)
+                    .Update();
+
+                Debug.Log($"[Supabase] Synced level {level} to cloud.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Supabase] Sync level error: {ex.Message}");
+            }
+        }
     }
 }

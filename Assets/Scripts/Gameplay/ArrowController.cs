@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using ArrowGo.Audio;
 
 namespace ArrowGo.Gameplay
 {
@@ -137,11 +138,21 @@ namespace ArrowGo.Gameplay
                 OnScoreGained?.Invoke(10);
                 SpawnParticleFX(other.transform.position);
                 other.gameObject.SetActive(false); // Can be recycled by object pool
+
+                SoundManager.Instance?.PlayRingPass();
+                LevelManager.Instance?.RecordRingCollected();
             }
             else if (other.CompareTag("SpeedBoost"))
             {
                 ApplySpeedBoost(1.5f, 2.5f);
                 other.gameObject.SetActive(false);
+                SoundManager.Instance?.PlaySpeedBoost();
+            }
+            else if (other.CompareTag("FinishPortal"))
+            {
+                // Level completion trigger
+                SoundManager.Instance?.PlayLevelComplete();
+                LevelManager.Instance?.TriggerFinishLineCrossed();
             }
             else if (other.CompareTag("Obstacle"))
             {
@@ -165,6 +176,7 @@ namespace ArrowGo.Gameplay
             _rb.velocity = Vector2.zero;
             _rb.isKinematic = true;
 
+            SoundManager.Instance?.PlayCrash();
             SpawnParticleFX(transform.position);
             OnArrowCrashed?.Invoke();
         }

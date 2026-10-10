@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.arrow_profiles (
     arrow_color_hex TEXT DEFAULT '#00FFCC',
     games_played INT DEFAULT 0,
     wins INT DEFAULT 0,
+    current_level INT DEFAULT 1,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

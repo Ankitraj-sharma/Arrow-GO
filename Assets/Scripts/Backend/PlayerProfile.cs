@@ -38,6 +38,9 @@ namespace ArrowGo.Backend
         [Column("wins")]
         public int Wins { get; set; }
 
+        [Column("current_level")]
+        public int CurrentLevel { get; set; }
+
         [Column("updated_at")]
         public DateTime UpdatedAt { get; set; }
     }

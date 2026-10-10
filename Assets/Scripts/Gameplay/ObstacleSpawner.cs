@@ -36,8 +36,14 @@ namespace ArrowGo.Gameplay
         {
             if (playerTransform == null) return;
 
-            // Spawn ahead of player
-            while (_lastSpawnY < playerTransform.position.y + spawnDistanceAhead)
+            float maxTrackY = float.MaxValue;
+            if (LevelManager.Instance != null && LevelManager.Instance.CurrentMode == GameMode.LevelBased)
+            {
+                maxTrackY = LevelManager.Instance.GetCurrentLevelData().trackLength - 8f;
+            }
+
+            // Spawn ahead of player up to track length
+            while (_lastSpawnY < playerTransform.position.y + spawnDistanceAhead && _lastSpawnY < maxTrackY)
             {
                 SpawnRow(_lastSpawnY);
                 _lastSpawnY += rowSpacing;
