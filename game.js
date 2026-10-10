@@ -131,6 +131,23 @@ class ArrowPuzzleGame {
   }
 
   initEvents() {
+    // Mode Selection Buttons (Main Route, Random, Challenge)
+    document.querySelectorAll('.mode-tab').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        this.audio.playClick();
+        document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.mode;
+        if (mode === 'main') {
+          this.loadLevel(this.currentTier, 1);
+        } else if (mode === 'random') {
+          this.loadLevel(this.currentTier, Math.floor(Math.random() * 20) + 1);
+        } else if (mode === 'challenge') {
+          this.loadLevel('hard', 1);
+        }
+      });
+    });
+
     // Tier Selection Buttons
     document.querySelectorAll('.tier-tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -277,7 +294,7 @@ class ArrowPuzzleGame {
     const padding = 34;
     const step = (boardWidth - padding * 2) / (gridSize - 1);
 
-    // 1. Draw Subtle Dot Matrix
+    // 1. Draw Subtle Dot Matrix (arrowsgo.io exact style)
     const dotsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     dotsGroup.setAttribute('class', 'grid-dots');
     for (let r = 0; r < gridSize; r++) {
@@ -285,9 +302,9 @@ class ArrowPuzzleGame {
         const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         dot.setAttribute('cx', padding + c * step);
         dot.setAttribute('cy', padding + r * step);
-        dot.setAttribute('r', '3');
-        dot.setAttribute('fill', '#94a3b8');
-        dot.setAttribute('opacity', '0.45');
+        dot.setAttribute('r', '2.6');
+        dot.setAttribute('fill', '#7a9bd0');
+        dot.setAttribute('opacity', '0.55');
         dotsGroup.appendChild(dot);
       }
     }

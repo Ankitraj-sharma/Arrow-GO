@@ -1,131 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Arrow Puzzle: Tap Away - Easybrain Style Labyrinth</title>
-  <meta name="description" content="Play Arrow Puzzle Tap Away online. Minimalist labyrinth logic puzzle with Easy, Medium, Hard, and Complex levels, Google login, and global Supabase rankings.">
+  <meta charset="utf-8">
+  <title>ArrowsGo - Free Online Arrow Logic Puzzle Game</title>
+  <meta name="description" content="Play ArrowsGo, a free online arrow logic puzzle game with Main Route, Random Play, and Challenge Mode.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1020">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338d9d4'><polygon points='12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9'/></svg>">
-  <!-- Supabase Official JS SDK -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2342d3e8'><polygon points='12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9'/></svg>">
+  <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-  <!-- HEADER BAR -->
-  <header class="navbar">
-    <a href="#" class="brand">
-      <div class="brand-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9"/>
-        </svg>
-      </div>
-      <span>Arrow Puzzle</span>
-    </a>
+  <!-- SITE HEADER (ARROWSGO.IO) -->
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand-inline" href="/" aria-label="ArrowsGo home">
+        <div class="brand-inline-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9"/>
+          </svg>
+        </div>
+        <span class="brand-inline-title">Arrows<span>Go</span></span>
+      </a>
 
-    <!-- USER PROFILE & NAV ACTIONS -->
-    <div class="nav-actions">
-      <!-- Player Profile Pill -->
-      <div class="user-pill">
-        <div class="user-avatar">👤</div>
-        <div class="user-info">
+      <div class="site-actions">
+        <!-- Player Profile Badge -->
+        <div class="user-pill">
+          <div class="user-avatar">👤</div>
           <span class="user-name" id="nav-username">Connecting...</span>
           <span class="user-tier-pill tier-bronze" id="nav-user-tier">BRONZE</span>
         </div>
-      </div>
 
-      <button class="nav-btn auth-btn" id="btn-open-auth">Log In / Sign Up</button>
-      <button class="nav-btn auth-btn" id="btn-signout" style="display: none;">Sign Out</button>
-      <button class="icon-btn" id="btn-sound-toggle" title="Toggle Sound">🔊</button>
-      <button class="share-btn" id="btn-share">Share</button>
+        <button class="nav-cta" id="btn-open-auth">Log In</button>
+        <button class="nav-cta" id="btn-signout" style="display: none;">Sign Out</button>
+        <button class="icon-btn" id="btn-sound-toggle" title="Toggle Sound">🔊</button>
+        <button class="nav-cta" id="btn-share" type="button">Share</button>
+      </div>
     </div>
   </header>
 
-  <!-- MAIN GAME CONTAINER -->
-  <main class="main-layout">
-    
-    <!-- LEFT PANEL: CONTROLS & TIERS -->
-    <section class="left-card">
-      <div class="header-tag-group">
-        <span class="badge-tag">EASYBRAIN INSPIRED</span>
-        <span class="tier-badge badge-medium" id="current-tier-badge">MEDIUM</span>
-        <span class="level-indicator-badge" id="current-level-badge">LEVEL 1</span>
-      </div>
-
-      <h1 class="hero-title">Arrow Puzzle</h1>
-      <p class="hero-desc">
-        Tap the unblocked arrows to guide them out of the labyrinth. Clear the entire board without colliding to earn 3 stars!
-      </p>
-
-      <!-- DIFFICULTY TIERS -->
-      <div class="tier-selector-container">
-        <label class="section-label">DIFFICULTY TIER</label>
-        <div class="tier-tabs">
-          <button class="tier-tab-btn" data-tier="easy">🟢 Easy</button>
-          <button class="tier-tab-btn active" data-tier="medium">🟡 Medium</button>
-          <button class="tier-tab-btn" data-tier="hard">🔴 Hard</button>
-          <button class="tier-tab-btn" data-tier="complex">🟣 Complex</button>
+  <!-- MAIN HERO SECTION -->
+  <main class="hero-section">
+    <div class="site-shell hero-grid">
+      
+      <!-- LEFT HERO CARD -->
+      <article class="hero-card">
+        <p class="eyebrow">Arrows Puzzle Game Online</p>
+        
+        <div class="hero-title-wrap">
+          <h1 class="hero-title">Arrows<span>Go</span></h1>
+          <span class="tier-badge badge-medium" id="current-tier-badge">MEDIUM</span>
+          <span class="level-indicator-badge" id="current-level-badge">LEVEL 1</span>
         </div>
-      </div>
 
-      <!-- LIVES & STATUS BAR -->
-      <div class="status-panel">
-        <div class="status-item">
-          <span class="status-label">LIVES</span>
-          <div class="hearts-box" id="hearts-container">
-            <span class="heart active">❤️</span>
-            <span class="heart active">❤️</span>
-            <span class="heart active">❤️</span>
+        <p class="hero-lead">
+          Arrow Logic Puzzle Game is a lightweight browser puzzle on ArrowsGo, built for low-pressure play, gentle guidance, and instant feedback. Start with Main Route, switch to Random for a quick reset, or open Challenge when you want timed pressure.
+        </p>
+
+        <!-- GAME MODES (MAIN ROUTE, RANDOM, CHALLENGE) -->
+        <div class="hero-actions">
+          <button class="mode-tab active" data-mode="main">Main Route</button>
+          <button class="mode-tab" data-mode="random">Random</button>
+          <button class="mode-tab" data-mode="challenge">Challenge</button>
+        </div>
+
+        <!-- DIFFICULTY TIERS (EASY, MEDIUM, HARD, COMPLEX) -->
+        <div>
+          <span class="status-label">DIFFICULTY TIER</span>
+          <div class="tier-row">
+            <button class="tier-tab-btn" data-tier="easy">🟢 Easy</button>
+            <button class="tier-tab-btn active" data-tier="medium">🟡 Medium</button>
+            <button class="tier-tab-btn" data-tier="hard">🔴 Hard</button>
+            <button class="tier-tab-btn" data-tier="complex">🟣 Complex</button>
           </div>
         </div>
 
-        <div class="status-item">
-          <span class="status-label">MOVES</span>
-          <span class="status-val" id="stat-moves">0</span>
+        <!-- STATUS & LIVES HUD -->
+        <div class="status-panel">
+          <div class="status-item">
+            <span class="status-label">LIVES</span>
+            <div class="hearts-box" id="hearts-container">
+              <span class="heart active">❤️</span>
+              <span class="heart active">❤️</span>
+              <span class="heart active">❤️</span>
+            </div>
+          </div>
+
+          <div class="status-item">
+            <span class="status-label">MOVES</span>
+            <span class="status-val" id="stat-moves">0</span>
+          </div>
+
+          <div class="status-item">
+            <span class="status-label">SCORE</span>
+            <span class="status-val" id="stat-score" style="color: var(--brand);">0</span>
+          </div>
         </div>
 
-        <div class="status-item">
-          <span class="status-label">SCORE</span>
-          <span class="status-val" id="stat-score" style="color: #38d9d4;">0</span>
+        <!-- CONTROLS & ACTIONS -->
+        <div class="action-grid">
+          <button class="action-btn primary" id="btn-open-levels">
+            <span>🗺️</span> Level
+          </button>
+          <button class="action-btn" id="btn-hint">
+            <span>💡</span> Hint
+          </button>
+          <button class="action-btn" id="btn-undo">
+            <span>↺</span> Undo
+          </button>
+          <button class="action-btn" id="btn-reset">
+            <span>↻</span> Reset
+          </button>
+          <button class="action-btn special" id="btn-open-leaderboard">
+            <span>🏆</span> Ranks
+          </button>
         </div>
-      </div>
 
-      <!-- IN-GAME ACTIONS -->
-      <div class="action-grid">
-        <button class="action-btn primary" id="btn-open-levels">
-          <span>🗺️</span> Pick Level
-        </button>
-        <button class="action-btn" id="btn-hint">
-          <span>💡</span> Hint
-        </button>
-        <button class="action-btn" id="btn-undo">
-          <span>↺</span> Undo
-        </button>
-        <button class="action-btn" id="btn-reset">
-          <span>↻</span> Reset
-        </button>
-        <button class="action-btn special" id="btn-open-leaderboard">
-          <span>🏆</span> Leaderboard
-        </button>
-      </div>
-
-      <!-- NOTICE FOOTER -->
-      <div class="info-card">
-        <div class="info-card-header">
-          <span class="pulse-dot"></span>
-          <strong>Supabase Cloud Rankings Live</strong>
+        <!-- HERO NOTICE CARD (ARROWSGO.IO EXACT) -->
+        <div class="hero-notice" role="status" aria-live="polite">
+          <div class="hero-notice-top">
+            <span class="hero-notice-badge" aria-hidden="true">NEW</span>
+            <p class="hero-notice-label">Important Notice:</p>
+          </div>
+          <p class="hero-notice-title">Malicious Code Removed & Site Update Required</p>
+          <p class="hero-notice-text">
+            Updated 2026-09-27: The malicious code has been removed, and we’re sorry for the bad experience. Click the Update button at the top to load the latest site code. If you’d like to play the game again, clearing your browser cookies should help.
+          </p>
         </div>
-        <p>Sync your scores, unlock Elo tiers from Bronze to Champion, and play on any device seamlessly.</p>
-      </div>
-    </section>
+      </article>
 
-    <!-- RIGHT PANEL: PUZZLE BOARD -->
-    <section class="board-wrapper">
-      <div class="board-card" id="board-container">
-        <svg id="puzzle-svg" class="puzzle-svg" viewBox="0 0 520 520"></svg>
-      </div>
-    </section>
+      <!-- RIGHT HERO CARD: EXACT ARROWSGO.IO PEARLESCENT STAGE -->
+      <article class="board-container-shell">
+        <div class="game-shell-bezel">
+          <div class="game-stage-board" id="board-container">
+            <svg id="puzzle-svg" class="puzzle-svg" viewBox="0 0 520 520"></svg>
+          </div>
+        </div>
+      </article>
 
+    </div>
   </main>
 
   <!-- SHARE TOAST -->
@@ -138,7 +156,7 @@
         <h2 class="modal-title">🗺️ Select Level</h2>
         <button class="modal-close-x" id="btn-close-levels">&times;</button>
       </div>
-      <p class="modal-subtitle">Choose any level in the active difficulty tier to test your skills.</p>
+      <p class="modal-subtitle">Pick any level from the active difficulty tier.</p>
       <div class="levels-grid" id="levels-grid"></div>
     </div>
   </div>
@@ -150,11 +168,11 @@
         <h2 class="modal-title">🔐 Player Login & Sync</h2>
         <button class="modal-close-x" id="btn-close-auth">&times;</button>
       </div>
-      <p class="modal-subtitle">Save your progress, earn Elo ranking, and compete on the global leaderboard.</p>
+      <p class="modal-subtitle">Save progress, earn Elo ratings, and climb the global rankings.</p>
 
       <!-- GOOGLE SIGN IN BUTTON -->
       <button class="google-auth-btn" id="btn-google-login">
-        <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">
+        <svg viewBox="0 0 24 24" width="20" height="20">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -175,7 +193,7 @@
       <div class="auth-form">
         <div class="form-group" id="auth-username-group" style="display: none;">
           <label>Username</label>
-          <input type="text" id="auth-username" placeholder="Choose a warrior name">
+          <input type="text" id="auth-username" placeholder="Choose a name">
         </div>
         <div class="form-group">
           <label>Email</label>
@@ -206,27 +224,27 @@
   <div class="modal-overlay" id="victory-modal">
     <div class="modal-content">
       <h2 class="modal-title">🎉 Level Cleared!</h2>
-      <div class="stars-display" id="modal-win-stars">⭐⭐⭐</div>
-      <p class="modal-subtitle">All arrows successfully exited the labyrinth!</p>
-      <div class="modal-stats">
+      <div class="stars-display" id="modal-win-stars" style="font-size: 26px; margin: 10px 0; color: #facc15;">⭐⭐⭐</div>
+      <p class="modal-subtitle">All arrows successfully exited the board!</p>
+      <div class="modal-stats" style="display: flex; justify-content: space-around; background: rgba(255,255,255,0.05); padding: 14px; border-radius: 12px; margin-bottom: 20px;">
         <div>
-          <span class="stat-label">Moves</span>
-          <div class="stat-value" id="modal-win-moves">0</div>
+          <span class="status-label">Moves</span>
+          <div class="status-val" id="modal-win-moves">0</div>
         </div>
         <div>
-          <span class="stat-label">Total Score</span>
-          <div class="stat-value" id="modal-win-score" style="color: #38d9d4;">0</div>
+          <span class="status-label">Total Score</span>
+          <div class="status-val" id="modal-win-score" style="color: var(--brand);">0</div>
         </div>
       </div>
       <button class="modal-btn" id="btn-next-level">Next Level →</button>
     </div>
   </div>
 
-  <!-- GAME OVER MODAL (OUT OF LIVES) -->
+  <!-- GAME OVER MODAL -->
   <div class="modal-overlay" id="gameover-modal">
     <div class="modal-content">
       <h2 class="modal-title" style="color: #ef4444;">💥 Out of Lives!</h2>
-      <p class="modal-subtitle">You made 3 blocked moves. Don't worry, every maze can be mastered!</p>
+      <p class="modal-subtitle">You made 3 blocked moves. Don't worry, every maze can be untangled!</p>
       <button class="modal-btn" id="btn-retry-level">Try Again ↻</button>
     </div>
   </div>
