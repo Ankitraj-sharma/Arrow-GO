@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArrowsGo - Arrow Logic Puzzle Game Online</title>
+  <meta name="description" content="Play ArrowsGo online in your browser. Minimalist arrow logic puzzle with sequential unblocking, sound effects, and global Supabase leaderboard.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338d9d4'><polygon points='12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9'/></svg>">
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <a href="#" class="brand">
+      <div class="brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="12,2 15,9 22,12 15,15 12,22 9,15 2,12 9,9"/>
+        </svg>
+      </div>
+      <span>ArrowsGo</span>
+    </a>
+    <div class="nav-actions">
+      <button class="icon-btn" id="btn-sound-toggle" title="Toggle Sound">🔊</button>
+      <button class="share-btn" id="btn-share">Share</button>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <main class="main-layout">
+    
+    <!-- LEFT PANEL -->
+    <section class="left-card">
+      <span class="badge-tag">ARROWS PUZZLE GAME ONLINE</span>
+      
+      <div class="title-wrap">
+        <h1 class="hero-title">ArrowsGo</h1>
+        <span class="hero-level-badge" id="level-badge">LEVEL 3</span>
+      </div>
+
+      <p class="hero-desc">
+        Arrow Logic Puzzle Game is a lightweight browser puzzle on ArrowsGo, built for low-pressure play, gentle guidance, and instant feedback. Start with Main Route, switch to Random for a quick reset, or open Challenge when you want timed pressure.
+      </p>
+
+      <!-- MODE SELECTOR -->
+      <div class="mode-selector">
+        <button class="mode-btn active" data-mode="main">Main Route</button>
+        <button class="mode-btn" data-mode="random">Random</button>
+        <button class="mode-btn" data-mode="challenge">Challenge</button>
+      </div>
+
+      <!-- CONTROLS & STATS BAR -->
+      <div class="controls-bar">
+        <div class="stats-group">
+          <div class="stat-item">
+            <span class="stat-label">Moves</span>
+            <span class="stat-value" id="stat-moves">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Score</span>
+            <span class="stat-value" id="stat-score">0</span>
+          </div>
+          <div class="stat-item" id="timer-container" style="display: none;">
+            <span class="stat-label">Time</span>
+            <span class="stat-value" id="timer-val" style="color: #f87171;">60s</span>
+          </div>
+        </div>
+
+        <div class="actions-group">
+          <button class="action-pill" id="btn-hint" title="Show Hint">💡 Hint</button>
+          <button class="action-pill" id="btn-undo" title="Undo Move">↺ Undo</button>
+          <button class="action-pill" id="btn-reset" title="Restart Level">↻ Reset</button>
+          <button class="action-pill" id="btn-leaderboard" title="Global Leaderboard">🏆 Ranks</button>
+        </div>
+      </div>
+
+      <!-- NOTICE BOX -->
+      <div class="notice-box">
+        <div class="notice-header">
+          <span class="notice-tag">LIVE</span>
+          <span class="notice-title">SUPABASE CLOUD SYNC ACTIVE</span>
+        </div>
+        <p class="notice-text">
+          Logged in as <strong id="player-username-display" style="color: #38d9d4;">Connecting...</strong>. Your moves, cleared boards, and high scores are backed up to the global leaderboard in real-time.
+        </p>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: GAME BOARD -->
+    <section class="board-wrapper">
+      <div class="board-card" id="board-container">
+        <svg id="puzzle-svg" class="puzzle-svg" viewBox="0 0 520 520"></svg>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SHARE TOAST -->
+  <div class="toast" id="share-toast">Game link copied to clipboard! 📋</div>
+
+  <!-- VICTORY MODAL -->
+  <div class="modal-overlay" id="victory-modal">
+    <div class="modal-content">
+      <h2 class="modal-title">🎉 Level Cleared!</h2>
+      <p class="modal-subtitle">All arrows successfully escaped the board.</p>
+      <div class="modal-stats">
+        <div>
+          <span class="stat-label">Moves</span>
+          <div class="stat-value" id="modal-win-moves">0</div>
+        </div>
+        <div>
+          <span class="stat-label">Total Score</span>
+          <div class="stat-value" id="modal-win-score" style="color: #38d9d4;">0</div>
+        </div>
+      </div>
+      <button class="modal-btn" id="btn-next-level">Next Level →</button>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD MODAL -->
+  <div class="modal-overlay" id="leaderboard-modal">
+    <div class="modal-content" style="max-width: 480px;">
+      <h2 class="modal-title">🏆 Global Leaderboard</h2>
+      <p class="modal-subtitle">Top Arrow Masters from Supabase Cloud</p>
+      <div class="leaderboard-list" id="leaderboard-list"></div>
+      <button class="modal-btn" id="btn-close-leaderboard">Close</button>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="levels.js"></script>
+  <script src="supabase.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
