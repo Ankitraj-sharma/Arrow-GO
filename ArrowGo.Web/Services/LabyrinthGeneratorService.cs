@@ -55,28 +55,66 @@ public class LabyrinthGeneratorService
         }
     }
 
+    private static readonly Dictionary<string, string> GeneratedCache = new(StringComparer.OrdinalIgnoreCase);
+
     public string GetLevel(string tier, int levelNum)
     {
         var key = tier?.ToLowerInvariant() ?? "easy";
-        if (!CuratedLevels.TryGetValue(key, out var list))
+        int clampedLevel = Math.Clamp(levelNum, 1, 50);
+        string cacheKey = $"{key}_{clampedLevel}";
+
+        lock (GeneratedCache)
         {
-            list = CuratedLevels["easy"];
+            if (GeneratedCache.TryGetValue(cacheKey, out var cached))
+                return cached;
         }
 
-        int index = Math.Max(0, levelNum - 1);
-        if (index < list.Count)
+        if (CuratedLevels.TryGetValue(key, out var list))
         {
-            return list[index];
+            int index = clampedLevel - 1;
+            if (index < list.Count)
+            {
+                lock (GeneratedCache) GeneratedCache[cacheKey] = list[index];
+                return list[index];
+            }
         }
 
-        // Procedural generation beyond 10
-        int width = 16, height = 16, target = 22, minL = 6, maxL = 16;
-        if (key == "easy") { width = 14; height = 14; target = 16; minL = 5; maxL = 14; }
-        else if (key == "medium") { width = 24; height = 24; target = 36; minL = 7; maxL = 20; }
-        else if (key == "hard") { width = 34; height = 34; target = 58; minL = 8; maxL = 24; }
-        else if (key == "complex") { width = 46; height = 46; target = 90; minL = 10; maxL = 28; }
+        // Progressive difficulty scaling for levels up to 50
+        double progress = (clampedLevel - 1) / 49.0;
+        int width, target, minL, maxL;
 
-        return GenerateSolvableLevel(width, height, target, minL, maxL);
+        if (key == "easy")
+        {
+            width = (int)Math.Round(12 + progress * 8);       // 12 -> 20
+            target = (int)Math.Round(10 + progress * 26);     // 10 -> 36
+            minL = (int)Math.Round(4 + progress * 2);         // 4 -> 6
+            maxL = (int)Math.Round(10 + progress * 8);        // 10 -> 18
+        }
+        else if (key == "medium")
+        {
+            width = (int)Math.Round(18 + progress * 12);      // 18 -> 30
+            target = (int)Math.Round(20 + progress * 38);     // 20 -> 58
+            minL = (int)Math.Round(5 + progress * 3);         // 5 -> 8
+            maxL = (int)Math.Round(14 + progress * 10);       // 14 -> 24
+        }
+        else if (key == "hard")
+        {
+            width = (int)Math.Round(26 + progress * 14);      // 26 -> 40
+            target = (int)Math.Round(35 + progress * 50);     // 35 -> 85
+            minL = (int)Math.Round(6 + progress * 3);         // 6 -> 9
+            maxL = (int)Math.Round(18 + progress * 10);       // 18 -> 28
+        }
+        else // complex
+        {
+            width = (int)Math.Round(34 + progress * 16);      // 34 -> 50
+            target = (int)Math.Round(50 + progress * 70);     // 50 -> 120
+            minL = (int)Math.Round(7 + progress * 3);         // 7 -> 10
+            maxL = (int)Math.Round(22 + progress * 10);       // 22 -> 32
+        }
+
+        var generated = GenerateSolvableLevel(width, width, target, minL, maxL);
+        lock (GeneratedCache) GeneratedCache[cacheKey] = generated;
+        return generated;
     }
 
     public static string GenerateSolvableLevel(int width, int height, int targetArrows, int minLen = 5, int maxLen = 18)

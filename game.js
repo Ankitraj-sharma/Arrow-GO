@@ -1115,6 +1115,9 @@ class ArrowPuzzleGame {
 
   nextLevel() {
     this.currentLevelNum++;
+    if (this.currentLevelNum > 50) {
+      this.currentLevelNum = 1;
+    }
     this.loadLevel(this.currentTier, this.currentLevelNum);
   }
 
@@ -1123,13 +1126,13 @@ class ArrowPuzzleGame {
     if (!grid) return;
     grid.innerHTML = '';
 
-    const list = window.CURATED_LEVELS[this.currentTier] || [];
-    const count = Math.max(10, list.length);
+    const count = 50;
 
     for (let i = 1; i <= count; i++) {
       const btn = document.createElement('button');
       btn.className = `level-select-btn ${i === this.currentLevelNum ? 'active' : ''}`;
       btn.textContent = i;
+      btn.title = `${this.currentTier.toUpperCase()} Level ${i}`;
       btn.addEventListener('click', () => {
         this.audio.playClick();
         this.closeModal('levels-modal');

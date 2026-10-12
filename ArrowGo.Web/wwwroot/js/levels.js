@@ -56,7 +56,7 @@ const CURATED_LEVELS = {
 };
 
 // Global procedural labyrinth generator for infinite dynamic play
-function generateArrowPuzzle(width, height, targetArrows, minLen = 5, maxLen = 18) {
+function generateArrowPuzzle(width, height, targetArrows, minLen = 5, maxLen = 18, rand = Math.random) {
   const DIRS = [
     { dx: 0, dy: -1, dir: 0 },
     { dx: 1, dy: 0, dir: 1 },
@@ -91,13 +91,13 @@ function generateArrowPuzzle(width, height, targetArrows, minLen = 5, maxLen = 1
     let subAttempts = 0;
     while (arrows.length < targetArrows && subAttempts < 2500) {
       subAttempts++;
-      const headX = Math.floor(Math.random() * width);
-      const headY = Math.floor(Math.random() * height);
+      const headX = Math.floor(rand() * width);
+      const headY = Math.floor(rand() * height);
       if (grid[headY][headX] > 0) continue;
 
       const validDirs = DIRS.filter(d => canRunOut(headX, headY, d.dir));
       if (validDirs.length === 0) continue;
-      const chosenDir = validDirs[Math.floor(Math.random() * validDirs.length)];
+      const chosenDir = validDirs[Math.floor(rand() * validDirs.length)];
 
       const path = [[headX, headY]];
       let curX = headX - chosenDir.dx;
@@ -106,7 +106,7 @@ function generateArrowPuzzle(width, height, targetArrows, minLen = 5, maxLen = 1
       if (curX < 0 || curX >= width || curY < 0 || curY >= height || grid[curY][curX] > 0) continue;
       path.unshift([curX, curY]);
 
-      const desiredLen = Math.floor(Math.random() * (maxLen - minLen + 1)) + minLen;
+      const desiredLen = Math.floor(rand() * (maxLen - minLen + 1)) + minLen;
       let curDir = chosenDir;
       let straightRun = 1;
 
@@ -141,11 +141,11 @@ function generateArrowPuzzle(width, height, targetArrows, minLen = 5, maxLen = 1
 
         if (straightRun < 2 && straightStep) {
           nextStep = straightStep;
-        } else if (straightStep && Math.random() < 0.60) {
+        } else if (straightStep && rand() < 0.60) {
           nextStep = straightStep;
         } else {
           const turns = possibleSteps.filter(s => !s.isStraight);
-          nextStep = turns.length > 0 ? turns[Math.floor(Math.random() * turns.length)] : straightStep;
+          nextStep = turns.length > 0 ? turns[Math.floor(rand() * turns.length)] : straightStep;
         }
 
         if (!nextStep) break;
@@ -173,24 +173,67 @@ function generateArrowPuzzle(width, height, targetArrows, minLen = 5, maxLen = 1
   return null;
 }
 
-// Retrieves level for a tier and level number (1-indexed)
+// Seeded PRNG for consistent, deterministic level generation
+function createSeededRandom(seed) {
+  let s = (seed >>> 0) || 123456789;
+  return function() {
+    s |= 0;
+    s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const LEVEL_CACHE = {};
+
+// Retrieves level for a tier and level number (1 to 50 with progressive difficulty scaling)
 function getLevel(tier, levelNum) {
   const tierKey = (tier || 'easy').toLowerCase();
+  const clampedLevel = Math.max(1, Math.min(50, levelNum || 1));
+  const cacheKey = `${tierKey}_${clampedLevel}`;
+  if (LEVEL_CACHE[cacheKey]) return LEVEL_CACHE[cacheKey];
+
   const list = CURATED_LEVELS[tierKey] || CURATED_LEVELS.easy;
-  const index = Math.max(0, (levelNum || 1) - 1);
-  if (index < list.length && list[index]) {
-    return list[index];
+  // Use hand-crafted curated levels if available for early levels
+  if (clampedLevel <= list.length && list[clampedLevel - 1]) {
+    LEVEL_CACHE[cacheKey] = list[clampedLevel - 1];
+    return LEVEL_CACHE[cacheKey];
   }
 
-  // If beyond 10, procedurally generate a matching labyrinth level on the fly!
-  let width = 16, height = 16, target = 22, minL = 6, maxL = 16;
-  if (tierKey === 'easy') { width = 14; height = 14; target = 16; minL = 5; maxL = 14; }
-  else if (tierKey === 'medium') { width = 24; height = 24; target = 36; minL = 7; maxL = 20; }
-  else if (tierKey === 'hard') { width = 34; height = 34; target = 58; minL = 8; maxL = 24; }
-  else if (tierKey === 'complex') { width = 46; height = 46; target = 90; minL = 10; maxL = 28; }
+  // Progressive difficulty scaling for all levels up to 50
+  const progress = (clampedLevel - 1) / 49;
+  let width, height, target, minL, maxL;
 
-  const generated = generateArrowPuzzle(width, height, target, minL, maxL);
-  return generated || list[0];
+  if (tierKey === 'easy') {
+    width = Math.round(12 + progress * 8);       // 12x12 -> 20x20
+    target = Math.round(10 + progress * 26);     // 10 -> 36 arrows
+    minL = Math.round(4 + progress * 2);         // 4 -> 6 min length
+    maxL = Math.round(10 + progress * 8);        // 10 -> 18 max length
+  } else if (tierKey === 'medium') {
+    width = Math.round(18 + progress * 12);      // 18x18 -> 30x30
+    target = Math.round(20 + progress * 38);     // 20 -> 58 arrows
+    minL = Math.round(5 + progress * 3);         // 5 -> 8 min length
+    maxL = Math.round(14 + progress * 10);       // 14 -> 24 max length
+  } else if (tierKey === 'hard') {
+    width = Math.round(26 + progress * 14);      // 26x26 -> 40x40
+    target = Math.round(35 + progress * 50);     // 35 -> 85 arrows
+    minL = Math.round(6 + progress * 3);         // 6 -> 9 min length
+    maxL = Math.round(18 + progress * 10);       // 18 -> 28 max length
+  } else { // complex
+    width = Math.round(34 + progress * 16);      // 34x34 -> 50x50
+    target = Math.round(50 + progress * 70);     // 50 -> 120 arrows
+    minL = Math.round(7 + progress * 3);         // 7 -> 10 min length
+    maxL = Math.round(22 + progress * 10);       // 22 -> 32 max length
+  }
+  height = width;
+
+  const seed = (clampedLevel * 10007) ^ (tierKey.charCodeAt(0) * 8191);
+  const rng = createSeededRandom(seed);
+  const generated = generateArrowPuzzle(width, height, target, minL, maxL, rng);
+
+  LEVEL_CACHE[cacheKey] = generated || list[0] || CURATED_LEVELS.easy[0];
+  return LEVEL_CACHE[cacheKey];
 }
 
 window.CURATED_LEVELS = CURATED_LEVELS;
