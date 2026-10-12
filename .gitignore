@@ -16,7 +16,9 @@
 *.pidb
 *.booproj
 *.unityproj
+# Solution files
 *.sln
+!ArrowGo.sln
 *.suo
 *.user
 *.userprefs
@@ -24,6 +26,12 @@
 *.booproj
 *.svd
 *.bak
+
+# .NET / ASP.NET Core
+**/bin/
+**/obj/
+*.user
+*.userprefs
 
 # VS/Rider/Crashlytics
 .vs/

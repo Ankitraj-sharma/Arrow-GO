@@ -104,11 +104,11 @@ namespace ArrowGo.Gameplay
         {
             float horizontalForce = _currentTouchOffset.x * steeringSensitivity * 22f;
             Vector2 targetVelocity = new Vector2(horizontalForce, _currentSpeed);
-            _rb.velocity = targetVelocity;
+            _rb.linearVelocity = targetVelocity;
 
-            if (_rb.velocity.sqrMagnitude > 0.01f)
+            if (_rb.linearVelocity.sqrMagnitude > 0.01f)
             {
-                float targetAngle = Mathf.Atan2(_rb.velocity.y, _rb.velocity.x) * Mathf.Rad2Deg - 90f;
+                float targetAngle = Mathf.Atan2(_rb.linearVelocity.y, _rb.linearVelocity.x) * Mathf.Rad2Deg - 90f;
                 float smoothAngle = Mathf.SmoothDampAngle(_rb.rotation, targetAngle, ref _currentVelocityZ, rotationSmoothTime);
                 _rb.rotation = smoothAngle;
             }
@@ -173,7 +173,7 @@ namespace ArrowGo.Gameplay
         private void Crash()
         {
             _isAlive = false;
-            _rb.velocity = Vector2.zero;
+            _rb.linearVelocity = Vector2.zero;
             _rb.isKinematic = true;
 
             SoundManager.Instance?.PlayCrash();
@@ -194,7 +194,7 @@ namespace ArrowGo.Gameplay
         {
             _isAlive = true;
             _rb.isKinematic = false;
-            _rb.velocity = Vector2.zero;
+            _rb.linearVelocity = Vector2.zero;
             transform.position = spawnPosition;
             transform.rotation = Quaternion.identity;
             _currentSpeed = forwardSpeed;

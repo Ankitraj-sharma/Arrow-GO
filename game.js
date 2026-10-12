@@ -1079,7 +1079,8 @@ class ArrowPuzzleGame {
     if (mistakes === 1) stars = 2;
     else if (mistakes >= 2) stars = 1;
 
-    document.getElementById('modal-stars').textContent = '⭐'.repeat(stars);
+    const starsElem = document.getElementById('modal-win-stars') || document.getElementById('modal-stars');
+    if (starsElem) starsElem.textContent = '⭐'.repeat(stars);
     document.getElementById('modal-win-moves').textContent = this.moveCount;
     document.getElementById('modal-win-score').textContent = this.score;
 
@@ -1087,7 +1088,23 @@ class ArrowPuzzleGame {
     if (modal) modal.classList.add('show');
 
     // Submit score to Supabase
-    window.supabaseService.submitLevelComplete(this.currentTier, this.currentLevelNum, this.score);
+    window.supabaseService?.submitLevelComplete(this.currentTier, this.currentLevelNum, this.score);
+
+    // Also notify ASP.NET Core Backend Web API
+    try {
+      fetch('/api/game/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tier: this.currentTier,
+          levelNumber: this.currentLevelNum,
+          score: this.score,
+          moves: this.moveCount,
+          userId: window.supabaseService?.currentUser?.id || null,
+          username: window.supabaseService?.currentUser?.email?.split('@')[0] || 'Guest'
+        })
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   handleGameOver() {

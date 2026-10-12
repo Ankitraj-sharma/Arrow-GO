@@ -1,0 +1,105 @@
+@{
+    ViewData["Title"] = "Play Online";
+}
+
+<!-- MAIN HERO SECTION -->
+<main class="hero-section">
+  <div class="site-shell hero-grid">
+    
+    <!-- LEFT HERO CARD -->
+    <article class="hero-card">
+      <p class="eyebrow">Arrows Puzzle Game Online &bull; ASP.NET Core MVC</p>
+      
+      <div class="hero-title-wrap">
+        <h1 class="hero-title">Arrows<span>Go</span></h1>
+        <span class="tier-badge badge-easy" id="current-tier-badge">EASY</span>
+        <span class="level-indicator-badge" id="current-level-badge">LEVEL 1</span>
+      </div>
+
+      <p class="hero-lead">
+        Arrow Logic Puzzle Game is a lightweight browser puzzle on ArrowsGo, built with ASP.NET Core 9.0 MVC & C# for low-pressure play, gentle guidance, and instant feedback. Start with Main Route, switch to Random for a quick reset, or open Challenge when you want timed pressure.
+      </p>
+
+      <!-- GAME MODES (MAIN ROUTE, RANDOM, CHALLENGE) -->
+      <div class="hero-actions">
+        <button class="mode-tab active" data-mode="main">Main Route</button>
+        <button class="mode-tab" data-mode="random">Random</button>
+        <button class="mode-tab" data-mode="challenge">Challenge</button>
+      </div>
+
+      <!-- DIFFICULTY TIERS (EASY, MEDIUM, HARD, COMPLEX) -->
+      <div>
+        <span class="status-label">DIFFICULTY TIER</span>
+        <div class="tier-row">
+          <button class="tier-tab-btn active" data-tier="easy">🟢 Easy</button>
+          <button class="tier-tab-btn" data-tier="medium">🟡 Medium</button>
+          <button class="tier-tab-btn" data-tier="hard">🔴 Hard</button>
+          <button class="tier-tab-btn" data-tier="complex">🟣 Complex</button>
+        </div>
+      </div>
+
+      <!-- STATUS & LIVES HUD -->
+      <div class="status-panel">
+        <div class="status-item">
+          <span class="status-label">LIVES</span>
+          <div class="hearts-box" id="hearts-container">
+            <span class="heart active">❤️</span>
+            <span class="heart active">❤️</span>
+            <span class="heart active">❤️</span>
+          </div>
+        </div>
+
+        <div class="status-item">
+          <span class="status-label">MOVES</span>
+          <span class="status-val" id="stat-moves">0</span>
+        </div>
+
+        <div class="status-item">
+          <span class="status-label">SCORE</span>
+          <span class="status-val" id="stat-score" style="color: var(--brand);">0</span>
+        </div>
+      </div>
+
+      <!-- CONTROLS & ACTIONS -->
+      <div class="action-grid">
+        <button class="action-btn primary" id="btn-open-levels">
+          <span>🗺️</span> Level
+        </button>
+        <button class="action-btn" id="btn-hint">
+          <span>💡</span> Hint
+        </button>
+        <button class="action-btn" id="btn-undo">
+          <span>↺</span> Undo
+        </button>
+        <button class="action-btn" id="btn-reset">
+          <span>↻</span> Reset
+        </button>
+        <button class="action-btn special" id="btn-open-leaderboard">
+          <span>🏆</span> Ranks
+        </button>
+      </div>
+
+      <!-- HERO NOTICE CARD (ARROWSGO.IO EXACT) -->
+      <div class="hero-notice" role="status" aria-live="polite">
+        <div class="hero-notice-top">
+          <span class="hero-notice-badge" aria-hidden="true">C# MVC</span>
+          <p class="hero-notice-label">ASP.NET Core Powered Engine:</p>
+        </div>
+        <p class="hero-notice-title">Solvable Labyrinth Generator & REST API</p>
+        <p class="hero-notice-text">
+          Levels and raycast collision validation are computed via C# Backend Services (<code style="color: var(--brand);">LabyrinthGeneratorService.cs</code>) with high-efficiency 60 FPS HTML5 Canvas rendering and Supabase cloud authentication.
+        </p>
+      </div>
+    </article>
+
+    <!-- RIGHT HERO CARD: EXACT ARROWSGO.IO PEARLESCENT STAGE -->
+    <article class="board-container-shell">
+      <div class="game-shell-bezel">
+        <div class="game-stage-board" id="board-container">
+          <canvas id="GameCanvas"></canvas>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</main>
