@@ -496,64 +496,44 @@ body {
   aspect-ratio: 1;
   overflow: hidden;
   border-radius: 26px;
-  border: 1px solid rgba(122, 180, 255, 0.24);
+  border: 1px solid rgba(122, 180, 255, 0.32);
   background:
-    radial-gradient(circle at 18% 10%, rgba(61, 197, 222, 0.14), transparent 28%),
-    radial-gradient(circle at 82% 12%, rgba(122, 125, 255, 0.14), transparent 24%),
-    linear-gradient(180deg, #edf5ff 0%, #ddeafb 46%, #c7dbf7 100%);
+    radial-gradient(circle at 18% 12%, rgba(66, 211, 232, 0.08), transparent 30%),
+    radial-gradient(circle at 82% 14%, rgba(122, 125, 255, 0.08), transparent 26%),
+    linear-gradient(180deg, #f8fbff 0%, #edf5fe 55%, #e1ecfd 100%);
   box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    inset 0 -18px 32px rgba(56, 82, 132, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -18px 32px rgba(56, 82, 132, 0.06);
   user-select: none;
 }
 
-.puzzle-svg {
+#GameCanvas {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
+  border-radius: 26px;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
-/* Dot Grid in SVG */
-.grid-dots circle {
-  transition: opacity 0.2s ease;
+.game-stage-board.is-error-flash {
+  animation: stageErrorFlash 0.52s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
-/* Arrow Paths in SVG */
-.arrow-item path {
-  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+.game-stage-board.is-success-flash {
+  animation: stageSuccessPulse 0.5s ease both;
 }
 
-.arrow-item:hover path {
-  stroke: #0284c7 !important;
-  stroke-width: 5.2px !important;
-}
-
-.arrow-item:hover polygon {
-  fill: #0284c7 !important;
-}
-
-.arrow-item:hover circle:first-of-type {
-  fill: #0284c7 !important;
-}
-
-/* Shake Animation on Blocked Arrow */
-@keyframes shakeError {
+@keyframes stageErrorFlash {
   0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+  15%, 55% { transform: translateX(-5px); }
+  35%, 75% { transform: translateX(5px); }
 }
 
-.arrow-item.shake-error {
-  animation: shakeError 0.4s ease-in-out;
-}
-
-.arrow-item.shake-error path {
-  stroke: #ef4444 !important;
-}
-
-.arrow-item.shake-error polygon,
-.arrow-item.shake-error circle:first-of-type {
-  fill: #ef4444 !important;
+@keyframes stageSuccessPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.015); box-shadow: 0 0 35px rgba(66, 211, 232, 0.45); }
+  100% { transform: scale(1); }
 }
 
 /* Hint Glow */

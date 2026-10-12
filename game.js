@@ -1,128 +1,765 @@
 // =========================================================================
-// ARROWS PUZZLE - GAME ENGINE (EASYBRAIN STYLE)
-// Features: Circuit Board SVG, 4 Tiers, 3 Hearts/Mistakes, Stars, Auth, Sound
+// ARROWS PUZZLE - HTML5 CANVAS ENGINE (AUTHENTIC ARROWSGO.IO REPLICA)
+// Features: High-DPI Canvas, Manhattan Raycast Grid, Slithering Runouts,
+//           Precision Chevrons, 4 Tiers, 3 Hearts, Synthesizer Audio, Supabase
 // =========================================================================
 
+const DESIGN_WIDTH = 750;
+const DESIGN_HEIGHT = 1334;
+
+const VISUAL_THEME = {
+  gridDot: '#6f94d0',
+  mono: '#0f172a',
+  arrows: [
+    '#1ba784', '#ed5126', '#2A52BE', '#96c24e', '#f9595c', '#fc8c23', 
+    '#4A7856', '#C77DFF', '#577590', '#F9C74F', '#43AA8B', '#E63946', 
+    '#4CC9F0', '#194B96', '#FFD166', '#7209B7', '#F72585'
+  ]
+};
+
+// --- AUDIO SYNTHESIZER ENGINE (Web Audio API) ---
 class AudioEngine {
   constructor() {
     this.ctx = null;
     this.isMuted = false;
+    this.streak = 0;
+    this.lastSuccessTime = 0;
   }
 
-  init() {
+  ensureContext() {
     if (!this.ctx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioContext();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
     }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
     }
+    return this.ctx;
   }
 
-  playWhoosh() {
+  playTone(config) {
     if (this.isMuted) return;
-    this.init();
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const now = this.ctx.currentTime;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(260, now);
-    osc.frequency.exponentialRampToValueAtTime(820, now + 0.24);
+    try {
+      const startAt = ctx.currentTime + 0.002;
+      const duration = Math.max(config.duration || 0.045, 0.02);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-    gain.gain.setValueAtTime(0.28, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.type = config.type || 'square';
+      osc.frequency.setValueAtTime(Math.max(config.frequency || 440, 80), startAt);
+      if (config.endFrequency) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(config.endFrequency, 80), startAt + duration);
+      }
 
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.3);
-  }
-
-  playBlocked() {
-    if (this.isMuted) return;
-    this.init();
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const now = this.ctx.currentTime;
-
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(160, now);
-    osc.frequency.setValueAtTime(110, now + 0.08);
-
-    gain.gain.setValueAtTime(0.35, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.22);
-  }
-
-  playVictory() {
-    if (this.isMuted) return;
-    this.init();
-    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; // C5, E5, G5, C6, E6
-    notes.forEach((freq, i) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      const now = this.ctx.currentTime + (i * 0.08);
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
-
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(config.gain || 0.03, startAt + Math.min(config.attack || 0.004, duration * 0.35));
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.48);
+      gain.connect(ctx.destination);
+      osc.start(startAt);
+      osc.stop(startAt + duration + 0.01);
+    } catch (_) {}
+  }
+
+  playSuccessSound() {
+    const now = Date.now();
+    if (now - this.lastSuccessTime > 1200) this.streak = 0;
+    this.streak = Math.min(this.streak + 1, 8);
+    this.lastSuccessTime = now;
+
+    this.playTone({
+      type: 'square',
+      frequency: 540 + this.streak * 42,
+      endFrequency: 560 + this.streak * 44,
+      duration: 0.052,
+      attack: 0.003,
+      gain: 0.028
+    });
+  }
+
+  playErrorSound() {
+    this.streak = 0;
+    this.lastSuccessTime = 0;
+    this.playTone({
+      type: 'sawtooth',
+      frequency: 260,
+      endFrequency: 178,
+      duration: 0.088,
+      attack: 0.003,
+      gain: 0.036
+    });
+  }
+
+  playVictorySound() {
+    if (this.isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+    notes.forEach((freq, i) => {
+      setTimeout(() => {
+        this.playTone({
+          type: 'sine',
+          frequency: freq,
+          duration: 0.35,
+          gain: 0.04
+        });
+      }, i * 90);
     });
   }
 
   playClick() {
-    if (this.isMuted) return;
-    this.init();
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    const now = this.ctx.currentTime;
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(750, now);
-    gain.gain.setValueAtTime(0.15, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.06);
+    this.playTone({
+      type: 'sine',
+      frequency: 720,
+      duration: 0.025,
+      gain: 0.015
+    });
   }
 }
 
+// --- OFFICIAL PUZZLE MAP (Manhattan Grid Matrix) ---
+class PuzzleMap {
+  constructor() {
+    this.width = 0;
+    this.height = 0;
+    this.currentDataString = '';
+    this.user_data = [];
+    this.arrowDataArray = [];
+    this.max_life = 3;
+    this.current_life = 3;
+  }
+
+  static CreateMapByStr(value) {
+    if (!value || !value.length) return null;
+    const parts = value.split(';');
+    if (parts.length !== 3) return null;
+    const map = new PuzzleMap();
+    map.currentDataString = value;
+    map.width = parseInt(parts[0], 10);
+    map.height = parseInt(parts[1], 10);
+    map.loadData();
+    return map;
+  }
+
+  getDirection(from, to) {
+    const fx = from[0], fy = from[1], tx = to[0], ty = to[1];
+    return fx === tx ? (fy > ty ? 0 : 2) : fy === ty ? (fx > tx ? 3 : 1) : -1;
+  }
+
+  loadData() {
+    this.user_data = [];
+    this.arrowDataArray = [];
+    for (let row = 0; row < this.height; row++) {
+      this.user_data.push(new Int32Array(this.width));
+    }
+    const parts = this.currentDataString.split(';');
+    if (parts.length === 3) {
+      const width = parseInt(parts[0], 10);
+      const pathStrings = parts[2].split('|');
+      for (let i = 0; i < pathStrings.length; i++) {
+        const pathCells = pathStrings[i].split(',');
+        if (!pathCells.length) continue;
+        const path = [];
+        for (let j = 0; j < pathCells.length; j++) {
+          const encoded = parseInt(pathCells[j], 10);
+          const x = Math.floor(encoded % width);
+          const y = Math.floor(encoded / width);
+          path.push([x, y]);
+        }
+        if (path.length >= 2) {
+          this.arrowDataArray.push({
+            path: path,
+            direction: this.getDirection(path[path.length - 2], path[path.length - 1]),
+            has_runout: false,
+            animation_index: 0
+          });
+        }
+      }
+    }
+    this.updateUserDataFromArrowData();
+    this.current_life = this.max_life;
+  }
+
+  updateUserDataFromArrowData() {
+    for (let row = 0; row < this.height; row++) {
+      this.user_data[row].fill(0);
+    }
+    for (let i = 0; i < this.arrowDataArray.length; i++) {
+      const arrow = this.arrowDataArray[i];
+      if (arrow.has_runout) continue;
+      for (let j = 0; j < arrow.path.length; j++) {
+        const point = arrow.path[j];
+        this.user_data[point[1]][point[0]] = 10000 + i;
+      }
+    }
+  }
+
+  isViablePosition(x, y) {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  getUserData(x, y) {
+    return this.isViablePosition(x, y) ? this.user_data[y][x] : 0;
+  }
+
+  canRunOut(point, direction, data) {
+    if (!point || point.length !== 2) return false;
+    const x = point[0], y = point[1];
+    if (direction === 0) { // UP
+      if (y === 0) return true;
+      for (let row = y - 1; row >= 0; row--) {
+        if (data[row][x] > 0) return false;
+      }
+    } else if (direction === 1) { // RIGHT
+      if (x === this.width - 1) return true;
+      for (let col = x + 1; col < this.width; col++) {
+        if (data[y][col] > 0) return false;
+      }
+    } else if (direction === 2) { // DOWN
+      if (y === this.height - 1) return true;
+      for (let down = y + 1; down < this.height; down++) {
+        if (data[down][x] > 0) return false;
+      }
+    } else if (direction === 3) { // LEFT
+      if (x === 0) return true;
+      for (let left = x - 1; left >= 0; left--) {
+        if (data[y][left] > 0) return false;
+      }
+    }
+    return true;
+  }
+
+  userAction(index) {
+    const x = Math.floor(index % this.width);
+    const y = Math.floor(index / this.width);
+    if (!this.isViablePosition(x, y)) return -1;
+    const arrowIndex = this.user_data[y][x] - 10000;
+    if (arrowIndex >= 0 && arrowIndex < this.arrowDataArray.length) {
+      const arrow = this.arrowDataArray[arrowIndex];
+      if (arrow.has_runout) return -1;
+      const last = arrow.path[arrow.path.length - 1];
+      if (this.canRunOut(last, arrow.direction, this.user_data)) {
+        return arrowIndex;
+      } else {
+        this.current_life--;
+        return -99; // Blocked error
+      }
+    }
+    return -1;
+  }
+
+  arrowRunOut(index) {
+    if (index < 0 || index >= this.arrowDataArray.length) return null;
+    const arrow = this.arrowDataArray[index];
+    arrow.has_runout = true;
+    arrow.animation_index = 0;
+    this.updateUserDataFromArrowData();
+    return arrow;
+  }
+
+  hasFinished() {
+    for (let i = 0; i < this.arrowDataArray.length; i++) {
+      if (!this.arrowDataArray[i].has_runout) return false;
+    }
+    return true;
+  }
+
+  hasFailed() {
+    return this.current_life <= 0;
+  }
+}
+
+// --- CANVAS 2D RENDERER (arrowsgo.io exact visual representation) ---
+class CanvasGameRenderer {
+  constructor(canvas, container, gameApp) {
+    this.canvas = canvas;
+    this.container = container;
+    this.gameApp = gameApp;
+    this.ctx = canvas.getContext('2d', { alpha: true });
+    this.map = null;
+    this.runoutArray = [];
+    this.animateGridLen = 3;
+    this.animateDuration = 0.008;
+    this.totalDt = 0;
+    this.lastWidth = 0;
+    this.lastHeight = 0;
+    this.dpr = 1;
+    this.errorHighlightIndex = -1;
+    this.errorHighlightUntil = 0;
+    this.hintHighlightIndex = -1;
+    this.hintHighlightUntil = 0;
+
+    this.bindEvents();
+    this.resize();
+  }
+
+  bindEvents() {
+    this.canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const pt = this.getCanvasPoint(e);
+      const gridIndex = this.getGridIndexWithTolerance(pt);
+      if (gridIndex >= 0) {
+        this.gameApp.handleCellTap(gridIndex);
+      }
+    });
+
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  resize() {
+    const rect = this.container.getBoundingClientRect();
+    const width = Math.max(260, Math.round(this.container.clientWidth || rect.width || 480));
+    const height = Math.max(260, Math.round(this.container.clientHeight || rect.height || width));
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+
+    this.lastWidth = width;
+    this.lastHeight = height;
+    this.dpr = dpr;
+
+    this.canvas.style.width = width + 'px';
+    this.canvas.style.height = height + 'px';
+    this.canvas.width = Math.round(width * dpr);
+    this.canvas.height = Math.round(height * dpr);
+
+    this.draw();
+  }
+
+  getCanvasPoint(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  }
+
+  getLayout() {
+    if (!this.map) return null;
+    const cols = this.map.width;
+    const rows = this.map.height;
+    const cell = Math.min(0.96 * this.lastWidth / cols, 0.96 * this.lastHeight / rows);
+    return {
+      cols,
+      rows,
+      cell,
+      left: (this.lastWidth - cell * cols) / 2,
+      top: (this.lastHeight - cell * rows) / 2
+    };
+  }
+
+  getCellCenter(layout, point) {
+    return {
+      x: layout.left + layout.cell * (point[0] + 0.5),
+      y: layout.top + layout.cell * (point[1] + 0.5)
+    };
+  }
+
+  getGridIndexAtPoint(pt) {
+    const layout = this.getLayout();
+    if (!layout) return -1;
+    const col = Math.floor((pt.x - layout.left) / layout.cell);
+    const row = Math.floor((pt.y - layout.top) / layout.cell);
+    return (col >= 0 && col < this.map.width && row >= 0 && row < this.map.height)
+      ? row * this.map.width + col
+      : -1;
+  }
+
+  getGridIndexWithTolerance(pt) {
+    const direct = this.getGridIndexAtPoint(pt);
+    if (this.isOccupied(direct)) return direct;
+
+    const layout = this.getLayout();
+    if (!layout) return -1;
+    const radius = Math.max(4, layout.cell * 0.28);
+    const offsets = [
+      [0, 0], [radius, 0], [-radius, 0], [0, radius], [0, -radius],
+      [radius, radius], [radius, -radius], [-radius, radius], [-radius, -radius]
+    ];
+    for (const off of offsets) {
+      const candidate = { x: pt.x + off[0], y: pt.y + off[1] };
+      const idx = this.getGridIndexAtPoint(candidate);
+      if (this.isOccupied(idx)) return idx;
+    }
+    return direct;
+  }
+
+  isOccupied(gridIndex) {
+    if (!this.map || gridIndex < 0) return false;
+    const col = gridIndex % this.map.width;
+    const row = Math.floor(gridIndex / this.map.width);
+    return this.map.getUserData(col, row) > 0;
+  }
+
+  setMap(map) {
+    this.map = map;
+    this.runoutArray = [];
+    this.errorHighlightIndex = -1;
+    this.errorHighlightUntil = 0;
+    this.hintHighlightIndex = -1;
+    this.hintHighlightUntil = 0;
+    this.resize();
+  }
+
+  markError(index) {
+    this.errorHighlightIndex = index;
+    this.errorHighlightUntil = Date.now() + 620;
+    this.draw();
+  }
+
+  markHint(index) {
+    this.hintHighlightIndex = index;
+    this.hintHighlightUntil = Date.now() + 2600;
+    this.draw();
+  }
+
+  calcArrowPoints(direction, tipPoint, size) {
+    const first = { x: tipPoint.x, y: tipPoint.y };
+    const second = { x: tipPoint.x, y: tipPoint.y };
+    const half = size / 2;
+    if (direction === 0) { // UP
+      first.x -= half; first.y += size;
+      second.x += half; second.y += size;
+    } else if (direction === 1) { // RIGHT
+      first.x -= size; first.y -= half;
+      second.x -= size; second.y += half;
+    } else if (direction === 2) { // DOWN
+      first.x -= half; first.y -= size;
+      second.x += half; second.y -= size;
+    } else { // LEFT
+      first.x += size; first.y -= half;
+      second.x += size; second.y += half;
+    }
+    return [first, second];
+  }
+
+  getArrowHeadGeometry(tipPoint, direction, size) {
+    const headPoints = this.calcArrowPoints(direction, tipPoint, size);
+    return {
+      headPoints,
+      baseCenter: {
+        x: (headPoints[0].x + headPoints[1].x) / 2,
+        y: (headPoints[0].y + headPoints[1].y) / 2
+      }
+    };
+  }
+
+  getArrowJoinPoint(points, desiredPoint) {
+    if (!points || points.length < 2) return desiredPoint;
+    const previous = points[points.length - 2];
+    const tip = points[points.length - 1];
+    const dx = tip.x - previous.x;
+    const dy = tip.y - previous.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq <= 0.0001) return desiredPoint;
+    const projection = ((desiredPoint.x - previous.x) * dx + (desiredPoint.y - previous.y) * dy) / lenSq;
+    const clamped = Math.min(Math.max(projection, 0.04), 0.94);
+    return {
+      x: previous.x + dx * clamped,
+      y: previous.y + dy * clamped
+    };
+  }
+
+  drawBoard(layout) {
+    const ctx = this.ctx;
+    const dotRadius = Math.max(layout.cols, layout.rows) >= 30 ? 2 : 2.7;
+    ctx.fillStyle = 'rgba(111, 148, 208, 0.38)';
+
+    for (let row = 0; row < layout.rows; row++) {
+      for (let col = 0; col < layout.cols; col++) {
+        ctx.beginPath();
+        ctx.arc(
+          layout.left + layout.cell * (col + 0.5),
+          layout.top + layout.cell * (row + 0.5),
+          dotRadius, 0, Math.PI * 2
+        );
+        ctx.fill();
+      }
+    }
+  }
+
+  drawPolyline(points, width, color) {
+    if (!points || points.length < 2) return;
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.stroke();
+  }
+
+  drawTriangle(tip, points, color) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  drawArrowFromPoints(index, points, direction) {
+    const layout = this.getLayout();
+    if (!layout || !points || points.length < 2) return;
+
+    const isError = (index === this.errorHighlightIndex && Date.now() < this.errorHighlightUntil);
+    const isHint = (index === this.hintHighlightIndex && Date.now() < this.hintHighlightUntil);
+
+    let colorHex = '#0f172a'; // Default mono circuit (arrowsgo.io exact)
+    if (isError) {
+      colorHex = '#e24b4b';
+    } else if (isHint) {
+      colorHex = '#eab308';
+    } else if (this.gameApp.colorMode === 'colorful') {
+      colorHex = VISUAL_THEME.arrows[index % VISUAL_THEME.arrows.length];
+    }
+
+    const width = Math.min(Math.max(layout.cell * 0.242, 4.8), 12.8);
+    const baseHead = Math.min(Math.max(layout.cell * 0.44, 9.5), 22.0);
+    const headSize = (direction === 1 || direction === 3) ? baseHead * 1.12 : baseHead;
+
+    const tipPoint = points[points.length - 1];
+    const geometry = this.getArrowHeadGeometry(tipPoint, direction, headSize);
+    const joinTarget = {
+      x: geometry.baseCenter.x + (tipPoint.x - geometry.baseCenter.x) * 0.13,
+      y: geometry.baseCenter.y + (tipPoint.y - geometry.baseCenter.y) * 0.13
+    };
+    const joinPoint = this.getArrowJoinPoint(points, joinTarget);
+
+    // Trim shaft so it does not poke through the pointed arrowhead!
+    const strokePoints = points.slice();
+    strokePoints[strokePoints.length - 1] = joinPoint;
+
+    // Soft subtle halo around arrow
+    const softEdge = isError ? 'rgba(255, 177, 177, 0.38)' : 'rgba(15, 23, 42, 0.16)';
+    this.drawPolyline(strokePoints, width + 1.2, softEdge);
+
+    // Main arrow shaft with rounded joins
+    this.drawPolyline(strokePoints, width, colorHex);
+
+    // Seam welding circle
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.arc(joinPoint.x, joinPoint.y, Math.max(width * 0.36, 1.5), 0, Math.PI * 2);
+    ctx.fillStyle = colorHex;
+    ctx.fill();
+
+    // Sharp chevron arrowhead
+    this.drawTriangle(tipPoint, geometry.headPoints, colorHex);
+  }
+
+  drawStaticArrow(index, arrowData) {
+    if (!arrowData || arrowData.has_runout) return;
+    const layout = this.getLayout();
+    const points = arrowData.path.map(pt => this.getCellCenter(layout, pt));
+    this.drawArrowFromPoints(index, points, arrowData.direction);
+  }
+
+  getSubGridPoint(point, progress, direction) {
+    if (direction === 0) return [point[0], point[1] - progress];
+    if (direction === 1) return [point[0] + progress, point[1]];
+    if (direction === 2) return [point[0], point[1] + progress];
+    return [point[0] - progress, point[1]];
+  }
+
+  buildRunoutPolyline(arrowData, tick) {
+    const layout = this.getLayout();
+    const path = arrowData.path;
+    const direction = arrowData.direction;
+    const step = Math.floor(tick / this.animateGridLen);
+    const fraction = (tick % this.animateGridLen) / this.animateGridLen;
+    const points = [];
+
+    if (step < path.length - 1) {
+      for (let i = step; i < path.length; i++) {
+        const point = path[i];
+        let gx = point[0], gy = point[1];
+        if (i === step) {
+          const nextPoint = path[i + 1];
+          const stepDir = this.map.getDirection(point, nextPoint);
+          const moved = this.getSubGridPoint(point, fraction, stepDir);
+          gx = moved[0]; gy = moved[1];
+        } else if (i === path.length - 1) {
+          const exitMoved = this.getSubGridPoint(point, tick / this.animateGridLen, direction);
+          gx = exitMoved[0]; gy = exitMoved[1];
+        }
+        points.push({
+          x: layout.left + layout.cell * (gx + 0.5),
+          y: layout.top + layout.cell * (gy + 0.5)
+        });
+      }
+      return { points, finished: false };
+    }
+
+    const last = path[path.length - 1];
+    const startExit = tick / this.animateGridLen - path.length + 1;
+    const endExit = tick / this.animateGridLen;
+    const startPt = this.getSubGridPoint(last, startExit, direction);
+    const endPt = this.getSubGridPoint(last, endExit, direction);
+    const from = { x: layout.left + layout.cell * (startPt[0] + 0.5), y: layout.top + layout.cell * (startPt[1] + 0.5) };
+    const to = { x: layout.left + layout.cell * (endPt[0] + 0.5), y: layout.top + layout.cell * (endPt[1] + 0.5) };
+    const margin = layout.cell * 1.5;
+    const finished = from.x < -margin || from.x > this.lastWidth + margin || from.y < -margin || from.y > this.lastHeight + margin;
+    return { points: [from, to], finished };
+  }
+
+  drawAnimatedArrow(index, arrowData) {
+    const anim = this.buildRunoutPolyline(arrowData, arrowData.animation_index);
+    if (anim.finished) return false;
+    this.drawArrowFromPoints(index, anim.points, arrowData.direction);
+    return true;
+  }
+
+  drawIntroGuide(layout) {
+    // Pulse ring on the first unblocked arrow if on Intro / Quick Guide Level
+    if (this.gameApp.currentTier !== 'easy' || this.gameApp.currentLevelNum !== 1 || !this.map) return;
+    const arrows = this.map.arrowDataArray;
+    if (!arrows || !arrows[0] || arrows[0].has_runout) return;
+
+    const points = arrows[0].path.map(pt => this.getCellCenter(layout, pt));
+    if (points.length < 2) return;
+    const midIdx = Math.floor(points.length / 2);
+    const center = points[midIdx];
+
+    const pulse = (Math.sin(Date.now() / 220) + 1) / 2;
+    const radius = Math.min(Math.max(layout.cell * (0.34 + pulse * 0.1), 12), 22);
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 209, 102, ${0.18 + pulse * 0.08})`;
+    ctx.fill();
+    ctx.lineWidth = Math.min(Math.max(layout.cell * 0.1, 3), 5);
+    ctx.strokeStyle = 'rgba(255, 209, 102, 0.92)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, Math.min(Math.max(layout.cell * 0.12, 4), 7), 0, Math.PI * 2);
+    ctx.fillStyle = '#fff3c4';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  drawHintGuide(layout) {
+    if (this.hintHighlightIndex < 0 || Date.now() > this.hintHighlightUntil || !this.map) return;
+    const arrow = this.map.arrowDataArray[this.hintHighlightIndex];
+    if (!arrow || arrow.has_runout) return;
+
+    const points = arrow.path.map(pt => this.getCellCenter(layout, pt));
+    const last = arrow.path[arrow.path.length - 1];
+    const exitPt = this.getSubGridPoint(last, 1.8, arrow.direction);
+    points.push({
+      x: layout.left + layout.cell * (exitPt[0] + 0.5),
+      y: layout.top + layout.cell * (exitPt[1] + 0.5)
+    });
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.min(Math.max(layout.cell * 0.14, 3.2), 5.5);
+    ctx.strokeStyle = '#eab308';
+    ctx.setLineDash([12, 8]);
+    ctx.lineDashOffset = -((Date.now() / 45) % 20);
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  draw() {
+    if (!this.map) return;
+    const ctx = this.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+
+    const layout = this.getLayout();
+    if (!layout) return;
+
+    this.drawBoard(layout);
+
+    const arrows = this.map.arrowDataArray;
+    for (let i = 0; i < arrows.length; i++) {
+      if (!arrows[i].has_runout) {
+        this.drawStaticArrow(i, arrows[i]);
+      }
+    }
+
+    for (let j = 0; j < arrows.length; j++) {
+      if (this.runoutArray.includes(arrows[j])) {
+        this.drawAnimatedArrow(j, arrows[j]);
+      }
+    }
+
+    this.drawIntroGuide(layout);
+    this.drawHintGuide(layout);
+  }
+
+  update(dt) {
+    if (this.runoutArray.length) {
+      this.totalDt += dt;
+      while (this.totalDt > this.animateDuration) {
+        this.totalDt -= this.animateDuration;
+        for (const arrow of this.runoutArray) {
+          arrow.animation_index += 1;
+        }
+      }
+      const active = [];
+      for (const arrow of this.runoutArray) {
+        if (!this.buildRunoutPolyline(arrow, arrow.animation_index).finished) {
+          active.push(arrow);
+        }
+      }
+      this.runoutArray = active;
+      if (this.runoutArray.length === 0 && this.map.hasFinished()) {
+        this.gameApp.handleVictory();
+      }
+      this.draw();
+    } else if (this.hintHighlightIndex >= 0 || Date.now() < this.errorHighlightUntil) {
+      this.draw();
+    }
+  }
+}
+
+// --- MAIN GAME APPLICATION CONTROLLER ---
 class ArrowPuzzleGame {
   constructor() {
     this.audio = new AudioEngine();
-    this.currentTier = 'medium'; // 'easy' | 'medium' | 'hard' | 'complex'
+    this.currentTier = 'easy'; // Starts with the authentic Intro / Quick Guide Level
     this.currentLevelNum = 1;
-    this.currentLevel = null;
-    this.activeArrows = [];
-    this.moveHistory = [];
+    this.currentMode = 'main'; // 'main' | 'random' | 'challenge'
+    this.colorMode = 'mono';   // 'mono' (classic dark circuit matching arrowsgo.io) | 'colorful'
     this.moveCount = 0;
     this.score = 0;
     this.lives = 3;
     this.maxLives = 3;
-    this.isAnimating = false;
+    this.moveHistory = [];
+    this.timerSeconds = 300;
+    this.timerInterval = null;
+    this.lastFrameTime = performance.now();
 
     // DOM Elements
-    this.svgBoard = document.getElementById('puzzle-svg');
+    this.canvas = document.getElementById('GameCanvas');
+    this.boardContainer = document.getElementById('board-container');
     this.levelBadge = document.getElementById('current-level-badge');
     this.tierBadge = document.getElementById('current-tier-badge');
     this.movesEl = document.getElementById('stat-moves');
     this.scoreEl = document.getElementById('stat-score');
     this.heartsEl = document.getElementById('hearts-container');
 
+    this.renderer = new CanvasGameRenderer(this.canvas, this.boardContainer, this);
+
     this.initEvents();
+    this.startLoop();
   }
 
   init() {
@@ -130,27 +767,41 @@ class ArrowPuzzleGame {
     this.updateUserNavbar();
   }
 
+  startLoop() {
+    const loop = (now) => {
+      const dt = (now - this.lastFrameTime) / 1000;
+      this.lastFrameTime = now;
+      this.renderer.update(Math.min(dt, 0.1));
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+
   initEvents() {
-    // Mode Selection Buttons (Main Route, Random, Challenge)
+    // Mode Buttons (Main Route, Random, Challenge)
     document.querySelectorAll('.mode-tab').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         this.audio.playClick();
         document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const mode = btn.dataset.mode;
+        this.currentMode = mode;
         if (mode === 'main') {
+          this.stopTimer();
           this.loadLevel(this.currentTier, 1);
         } else if (mode === 'random') {
-          this.loadLevel(this.currentTier, Math.floor(Math.random() * 20) + 1);
+          this.stopTimer();
+          this.loadRandomLevel();
         } else if (mode === 'challenge') {
-          this.loadLevel('hard', 1);
+          this.loadLevel('complex', 1);
+          this.startChallengeTimer();
         }
       });
     });
 
-    // Tier Selection Buttons
+    // Tier Buttons (Easy, Medium, Hard, Complex)
     document.querySelectorAll('.tier-tab-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         this.audio.playClick();
         document.querySelectorAll('.tier-tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -168,7 +819,10 @@ class ArrowPuzzleGame {
       this.loadLevel(this.currentTier, this.currentLevelNum);
     });
 
-    // Modals Triggers
+    // Color Mode Toggle
+    document.getElementById('btn-color-toggle')?.addEventListener('click', () => this.toggleColorMode());
+
+    // Modal Triggers
     document.getElementById('btn-open-levels')?.addEventListener('click', () => this.openLevelSelectModal());
     document.getElementById('btn-close-levels')?.addEventListener('click', () => this.closeModal('levels-modal'));
 
@@ -226,7 +880,6 @@ class ArrowPuzzleGame {
       }
     });
 
-    // Switch Sign In / Sign Up tabs
     document.getElementById('auth-tab-signin')?.addEventListener('click', (e) => {
       e.target.classList.add('active');
       document.getElementById('auth-tab-signup').classList.remove('active');
@@ -241,19 +894,16 @@ class ArrowPuzzleGame {
       document.getElementById('btn-submit-email-auth').textContent = 'Create Account';
     });
 
-    // Sign Out
     document.getElementById('btn-signout')?.addEventListener('click', async () => {
       await window.supabaseService.signOut();
       this.updateUserNavbar();
     });
 
-    // Sound toggle
     document.getElementById('btn-sound-toggle')?.addEventListener('click', (e) => {
       this.audio.isMuted = !this.audio.isMuted;
       e.currentTarget.textContent = this.audio.isMuted ? '🔇' : '🔊';
     });
 
-    // Share button
     document.getElementById('btn-share')?.addEventListener('click', () => {
       this.audio.playClick();
       navigator.clipboard.writeText(window.location.href);
@@ -265,13 +915,23 @@ class ArrowPuzzleGame {
     });
   }
 
+  toggleColorMode() {
+    this.colorMode = (this.colorMode === 'mono' ? 'colorful' : 'mono');
+    const btn = document.getElementById('btn-color-toggle');
+    if (btn) btn.textContent = this.colorMode === 'mono' ? '🎨' : '🖤';
+    this.audio.playClick();
+    this.renderer.draw();
+  }
+
   loadLevel(tier, levelNum) {
     this.currentTier = tier;
     this.currentLevelNum = levelNum;
-    this.currentLevel = getLevel(tier, levelNum);
-    this.activeArrows = [...this.currentLevel.arrows];
-    this.moveHistory = [];
+    const levelStr = window.getLevel(tier, levelNum);
+    this.map = PuzzleMap.CreateMapByStr(levelStr);
+    this.renderer.setMap(this.map);
+
     this.moveCount = 0;
+    this.moveHistory = [];
     this.lives = this.maxLives;
 
     if (this.levelBadge) this.levelBadge.textContent = `LEVEL ${levelNum}`;
@@ -281,282 +941,157 @@ class ArrowPuzzleGame {
     }
 
     this.updateStats();
-    this.renderBoard();
   }
 
-  renderBoard() {
-    if (!this.svgBoard) return;
-    this.svgBoard.innerHTML = '';
+  loadRandomLevel() {
+    this.currentLevelNum = Math.floor(Math.random() * 50) + 1;
+    let width = 20, height = 20, target = 30, minL = 6, maxL = 18;
+    if (this.currentTier === 'easy') { width = 14; height = 14; target = 16; minL = 5; maxL = 14; }
+    else if (this.currentTier === 'hard') { width = 32; height = 32; target = 52; minL = 8; maxL = 22; }
+    else if (this.currentTier === 'complex') { width = 44; height = 44; target = 80; minL = 10; maxL = 26; }
 
-    const boardWidth = 520;
-    const boardHeight = 520;
-    const gridSize = this.currentLevel.gridSize || 8;
-    const padding = 34;
-    const step = (boardWidth - padding * 2) / (gridSize - 1);
+    const levelStr = window.generateArrowPuzzle(width, height, target, minL, maxL) || window.getLevel(this.currentTier, 1);
+    this.map = PuzzleMap.CreateMapByStr(levelStr);
+    this.renderer.setMap(this.map);
+    this.moveCount = 0;
+    this.moveHistory = [];
+    this.lives = this.maxLives;
 
-    // 1. Draw Subtle Dot Matrix (arrowsgo.io exact style)
-    const dotsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    dotsGroup.setAttribute('class', 'grid-dots');
-    for (let r = 0; r < gridSize; r++) {
-      for (let c = 0; c < gridSize; c++) {
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot.setAttribute('cx', padding + c * step);
-        dot.setAttribute('cy', padding + r * step);
-        dot.setAttribute('r', '2.6');
-        dot.setAttribute('fill', '#7a9bd0');
-        dot.setAttribute('opacity', '0.55');
-        dotsGroup.appendChild(dot);
+    if (this.levelBadge) this.levelBadge.textContent = `RANDOM`;
+    this.updateStats();
+  }
+
+  startChallengeTimer() {
+    this.stopTimer();
+    this.timerSeconds = 300;
+    this.timerInterval = setInterval(() => {
+      this.timerSeconds--;
+      if (this.timerSeconds <= 0) {
+        this.stopTimer();
+        this.handleGameOver();
       }
+    }, 1000);
+  }
+
+  stopTimer() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
     }
-    this.svgBoard.appendChild(dotsGroup);
-
-    // 2. Draw Circuit Arrows
-    const arrowsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    arrowsGroup.setAttribute('class', 'arrows-layer');
-
-    this.activeArrows.forEach(arrow => {
-      const g = this.createArrowSVG(arrow, padding, step);
-      arrowsGroup.appendChild(g);
-    });
-
-    this.svgBoard.appendChild(arrowsGroup);
   }
 
-  createArrowSVG(arrow, padding, step) {
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('class', 'arrow-item');
-    g.setAttribute('data-id', arrow.id);
-    g.style.cursor = 'pointer';
+  handleCellTap(gridIndex) {
+    if (!this.map || this.lives <= 0) return;
 
-    // Build Path
-    let d = '';
-    arrow.points.forEach((pt, i) => {
-      const x = padding + pt.x * step;
-      const y = padding + pt.y * step;
-      d += (i === 0 ? `M ${x} ${y} ` : `L ${x} ${y} `);
-    });
-
-    // Path Line
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('stroke', '#0f172a');
-    path.setAttribute('stroke-width', '4.5');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    path.setAttribute('fill', 'none');
-    g.appendChild(path);
-
-    // Tail Circle Node (Easybrain signature circuit look)
-    const startPt = arrow.points[0];
-    const tailDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    tailDot.setAttribute('cx', padding + startPt.x * step);
-    tailDot.setAttribute('cy', padding + startPt.y * step);
-    tailDot.setAttribute('r', '5');
-    tailDot.setAttribute('fill', '#0f172a');
-    g.appendChild(tailDot);
-
-    // Arrowhead at Head
-    const headPt = arrow.points[arrow.points.length - 1];
-    const hx = padding + headPt.x * step;
-    const hy = padding + headPt.y * step;
-    const head = this.createArrowHead(hx, hy, arrow.direction);
-    g.appendChild(head);
-
-    // Optional Node Marker
-    if (arrow.hasNode && arrow.nodePos) {
-      const nx = padding + arrow.nodePos.x * step;
-      const ny = padding + arrow.nodePos.y * step;
-      const token = this.createNodeToken(nx, ny);
-      g.appendChild(token);
-    }
-
-    // Tap Event
-    g.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.handleArrowTap(arrow, g);
-    });
-
-    return g;
-  }
-
-  createArrowHead(x, y, dir) {
-    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    const size = 9;
-    let pts = '';
-
-    if (dir === 'right') {
-      pts = `${x},${y} ${x - size * 1.5},${y - size} ${x - size},${y} ${x - size * 1.5},${y + size}`;
-    } else if (dir === 'left') {
-      pts = `${x},${y} ${x + size * 1.5},${y - size} ${x + size},${y} ${x + size * 1.5},${y + size}`;
-    } else if (dir === 'down') {
-      pts = `${x},${y} ${x - size},${y - size * 1.5} ${x},${y - size} ${x + size},${y - size * 1.5}`;
-    } else { // 'up'
-      pts = `${x},${y} ${x - size},${y + size * 1.5} ${x},${y + size} ${x + size},${y + size * 1.5}`;
-    }
-
-    poly.setAttribute('points', pts);
-    poly.setAttribute('fill', '#0f172a');
-    return poly;
-  }
-
-  createNodeToken(x, y) {
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('class', 'node-token');
-
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('cx', x);
-    circle.setAttribute('cy', y);
-    circle.setAttribute('r', '12');
-    circle.setAttribute('fill', '#fef08a');
-    circle.setAttribute('stroke', '#eab308');
-    circle.setAttribute('stroke-width', '2.5');
-
-    const dot1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot1.setAttribute('cx', x - 3.5);
-    dot1.setAttribute('cy', y);
-    dot1.setAttribute('r', '1.6');
-    dot1.setAttribute('fill', '#854d0e');
-
-    const dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot2.setAttribute('cx', x + 3.5);
-    dot2.setAttribute('cy', y);
-    dot2.setAttribute('r', '1.6');
-    dot2.setAttribute('fill', '#854d0e');
-
-    g.appendChild(circle);
-    g.appendChild(dot1);
-    g.appendChild(dot2);
-    return g;
-  }
-
-  // --- COLLISION RAYCASTER ---
-  isArrowBlocked(arrow) {
-    const head = arrow.points[arrow.points.length - 1];
-    const dir = arrow.direction;
-    const eps = 0.05;
-
-    for (const other of this.activeArrows) {
-      if (other.id === arrow.id) continue;
-
-      for (let i = 0; i < other.points.length - 1; i++) {
-        const p1 = other.points[i];
-        const p2 = other.points[i + 1];
-
-        if (this.rayIntersectsSegment(head, dir, p1, p2, eps)) {
-          return true; // Blocked!
-        }
+    const result = this.map.userAction(gridIndex);
+    if (result >= 0) {
+      // Unblocked arrow!
+      const runout = this.map.arrowRunOut(result);
+      if (runout) {
+        this.renderer.runoutArray.push(runout);
+        this.moveHistory.push(result);
       }
-    }
-    return false; // Free!
-  }
+      this.moveCount++;
+      const tierMulti = { easy: 10, medium: 25, hard: 50, complex: 100 }[this.currentTier] || 20;
+      this.score += tierMulti;
 
-  rayIntersectsSegment(head, dir, p1, p2, eps) {
-    const minX = Math.min(p1.x, p2.x) - eps;
-    const maxX = Math.max(p1.x, p2.x) + eps;
-    const minY = Math.min(p1.y, p2.y) - eps;
-    const maxY = Math.max(p1.y, p2.y) + eps;
+      this.audio.playSuccessSound();
+      this.updateStats();
+      this.renderer.draw();
+    } else if (result === -99) {
+      // Blocked move - mistake!
+      this.lives = Math.max(0, this.map.current_life);
+      const arrowIdx = this.map.getUserData(gridIndex % this.map.width, Math.floor(gridIndex / this.map.width)) - 10000;
+      if (arrowIdx >= 0) this.renderer.markError(arrowIdx);
 
-    const isVertical = Math.abs(p1.x - p2.x) < 0.1;
-    const isHorizontal = Math.abs(p1.y - p2.y) < 0.1;
-
-    if (dir === 'right') {
-      if (isVertical && p1.x > head.x + eps && head.y >= minY && head.y <= maxY) return true;
-      if (isHorizontal && Math.abs(p1.y - head.y) < 0.2 && maxX > head.x + eps) return true;
-    } else if (dir === 'left') {
-      if (isVertical && p1.x < head.x - eps && head.y >= minY && head.y <= maxY) return true;
-      if (isHorizontal && Math.abs(p1.y - head.y) < 0.2 && minX < head.x - eps) return true;
-    } else if (dir === 'down') {
-      if (isHorizontal && p1.y > head.y + eps && head.x >= minX && head.x <= maxX) return true;
-      if (isVertical && Math.abs(p1.x - head.x) < 0.2 && maxY > head.y + eps) return true;
-    } else if (dir === 'up') {
-      if (isHorizontal && p1.y < head.y - eps && head.x >= minX && head.x <= maxX) return true;
-      if (isVertical && Math.abs(p1.x - head.x) < 0.2 && minY < head.y - eps) return true;
-    }
-    return false;
-  }
-
-  handleArrowTap(arrow, gElement) {
-    if (this.isAnimating) return;
-
-    if (this.isArrowBlocked(arrow)) {
-      // Mistake! Lose a life
-      this.audio.playBlocked();
-      this.lives = Math.max(0, this.lives - 1);
+      this.audio.playErrorSound();
+      this.flashStageError();
       this.updateStats();
 
-      // Shake animation
-      gElement.classList.add('shake-error');
-      setTimeout(() => gElement.classList.remove('shake-error'), 450);
-
-      // Check Game Over
       if (this.lives <= 0) {
-        setTimeout(() => this.handleGameOver(), 500);
+        setTimeout(() => this.handleGameOver(), 350);
       }
-      return;
     }
+  }
 
-    // Success! Smooth exit
-    this.isAnimating = true;
-    this.audio.playWhoosh();
-    this.moveCount++;
-    this.score += 30;
-    this.updateStats();
-
-    this.moveHistory.push({ arrow, element: gElement });
-
-    let deltaX = 0, deltaY = 0;
-    const dist = 600;
-    if (arrow.direction === 'right') deltaX = dist;
-    else if (arrow.direction === 'left') deltaX = -dist;
-    else if (arrow.direction === 'down') deltaY = dist;
-    else if (arrow.direction === 'up') deltaY = -dist;
-
-    gElement.style.transition = 'transform 0.38s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.38s ease-out';
-    gElement.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-    gElement.style.opacity = '0';
-
-    setTimeout(() => {
-      gElement.remove();
-      this.activeArrows = this.activeArrows.filter(a => a.id !== arrow.id);
-      this.isAnimating = false;
-
-      // Check Victory
-      if (this.activeArrows.length === 0) {
-        this.handleVictory();
+  showHint() {
+    if (!this.map) return;
+    for (let i = 0; i < this.map.arrowDataArray.length; i++) {
+      const arrow = this.map.arrowDataArray[i];
+      if (arrow.has_runout) continue;
+      const head = arrow.path[arrow.path.length - 1];
+      if (this.map.canRunOut(head, arrow.direction, this.map.user_data)) {
+        this.renderer.markHint(i);
+        this.audio.playClick();
+        return;
       }
-    }, 390);
+    }
+  }
+
+  undoMove() {
+    if (!this.map || this.moveHistory.length === 0) return;
+    const lastIndex = this.moveHistory.pop();
+    const arrow = this.map.arrowDataArray[lastIndex];
+    if (arrow) {
+      arrow.has_runout = false;
+      arrow.animation_index = 0;
+      this.map.updateUserDataFromArrowData();
+      this.renderer.draw();
+      this.audio.playClick();
+    }
+  }
+
+  flashStageError() {
+    if (this.boardContainer) {
+      this.boardContainer.classList.remove('is-error-flash');
+      void this.boardContainer.offsetWidth;
+      this.boardContainer.classList.add('is-error-flash');
+      setTimeout(() => this.boardContainer.classList.remove('is-error-flash'), 550);
+    }
+  }
+
+  updateStats() {
+    if (this.movesEl) this.movesEl.textContent = this.moveCount;
+    if (this.scoreEl) this.scoreEl.textContent = this.score;
+
+    if (this.heartsEl) {
+      this.heartsEl.innerHTML = '';
+      for (let i = 0; i < this.maxLives; i++) {
+        const span = document.createElement('span');
+        span.className = `heart ${i < this.lives ? 'active' : ''}`;
+        span.textContent = i < this.lives ? '❤️' : '🖤';
+        this.heartsEl.appendChild(span);
+      }
+    }
   }
 
   handleVictory() {
-    this.audio.playVictory();
+    this.stopTimer();
+    this.audio.playVictorySound();
 
-    // Calculate Stars
-    let stars = 3;
-    if (this.lives === 2) stars = 2;
-    if (this.lives === 1) stars = 1;
-
-    // Bonus based on tier
-    let tierBonus = { easy: 50, medium: 120, hard: 250, complex: 500 }[this.currentTier] || 100;
-    this.score += tierBonus;
-    this.updateStats();
-
-    // Save Stars
-    window.supabaseService.saveLevelStars(this.currentTier, this.currentLevelNum, stars);
-
-    // Cloud Sync
-    window.supabaseService.submitScore(this.score, true, tierBonus);
-
-    // Show Victory Modal
-    const modal = document.getElementById('victory-modal');
-    if (modal) {
-      document.getElementById('modal-win-score').textContent = this.score;
-      document.getElementById('modal-win-moves').textContent = this.moveCount;
-      document.getElementById('modal-win-stars').textContent = '⭐'.repeat(stars);
-      modal.classList.add('show');
+    if (this.boardContainer) {
+      this.boardContainer.classList.add('is-success-flash');
+      setTimeout(() => this.boardContainer.classList.remove('is-success-flash'), 600);
     }
+
+    const mistakes = this.maxLives - this.lives;
+    let stars = 3;
+    if (mistakes === 1) stars = 2;
+    else if (mistakes >= 2) stars = 1;
+
+    document.getElementById('modal-stars').textContent = '⭐'.repeat(stars);
+    document.getElementById('modal-win-moves').textContent = this.moveCount;
+    document.getElementById('modal-win-score').textContent = this.score;
+
+    const modal = document.getElementById('victory-modal');
+    if (modal) modal.classList.add('show');
+
+    // Submit score to Supabase
+    window.supabaseService.submitLevelComplete(this.currentTier, this.currentLevelNum, this.score);
   }
 
   handleGameOver() {
+    this.stopTimer();
     const modal = document.getElementById('gameover-modal');
     if (modal) modal.classList.add('show');
   }
@@ -566,144 +1101,84 @@ class ArrowPuzzleGame {
     this.loadLevel(this.currentTier, this.currentLevelNum);
   }
 
-  showHint() {
-    this.audio.playClick();
-    const ready = this.activeArrows.find(a => !this.isArrowBlocked(a));
-    if (ready) {
-      const g = this.svgBoard.querySelector(`[data-id="${ready.id}"]`);
-      if (g) {
-        g.classList.add('hint-glow');
-        setTimeout(() => g.classList.remove('hint-glow'), 1200);
-      }
-    }
-  }
-
-  undoMove() {
-    if (this.moveHistory.length === 0 || this.isAnimating) return;
-    this.audio.playClick();
-    const last = this.moveHistory.pop();
-    this.activeArrows.push(last.arrow);
-    this.moveCount = Math.max(0, this.moveCount - 1);
-    this.score = Math.max(0, this.score - 30);
-    this.updateStats();
-    this.renderBoard();
-  }
-
-  updateStats() {
-    if (this.movesEl) this.movesEl.textContent = this.moveCount;
-    if (this.scoreEl) this.scoreEl.textContent = this.score;
-
-    // Hearts display
-    if (this.heartsEl) {
-      let heartsHtml = '';
-      for (let i = 0; i < this.maxLives; i++) {
-        heartsHtml += (i < this.lives) ? '<span class="heart active">❤️</span>' : '<span class="heart lost">🖤</span>';
-      }
-      this.heartsEl.innerHTML = heartsHtml;
-    }
-  }
-
-  updateUserNavbar() {
-    const prof = window.supabaseService.profile;
-    const user = window.supabaseService.currentUser;
-
-    const nameEl = document.getElementById('nav-username');
-    const tierEl = document.getElementById('nav-user-tier');
-    const authBtn = document.getElementById('btn-open-auth');
-    const signoutBtn = document.getElementById('btn-signout');
-
-    if (prof) {
-      if (nameEl) nameEl.textContent = prof.username || 'Archer';
-      if (tierEl) {
-        tierEl.textContent = prof.rank_tier || 'Bronze';
-        tierEl.className = `user-tier-pill tier-${(prof.rank_tier || 'bronze').toLowerCase()}`;
-      }
-    }
-
-    if (user) {
-      if (authBtn) authBtn.style.display = 'none';
-      if (signoutBtn) signoutBtn.style.display = 'block';
-    } else {
-      if (authBtn) authBtn.style.display = 'block';
-      if (signoutBtn) signoutBtn.style.display = 'none';
-    }
-  }
-
-  // --- MODALS ---
   openLevelSelectModal() {
-    this.audio.playClick();
-    const modal = document.getElementById('levels-modal');
     const grid = document.getElementById('levels-grid');
-    if (!modal || !grid) return;
-
-    modal.classList.add('show');
+    if (!grid) return;
     grid.innerHTML = '';
 
-    // Render 12 levels for current tier
-    for (let i = 1; i <= 12; i++) {
-      const stars = window.supabaseService.getLevelStars(this.currentTier, i);
-      const isCurrent = (i === this.currentLevelNum);
+    const list = window.CURATED_LEVELS[this.currentTier] || [];
+    const count = Math.max(10, list.length);
 
-      const card = document.createElement('div');
-      card.className = `level-card ${isCurrent ? 'current' : ''} ${stars > 0 ? 'cleared' : ''}`;
-      card.innerHTML = `
-        <div class="lvl-num">Level ${i}</div>
-        <div class="lvl-stars">${stars > 0 ? '⭐'.repeat(stars) : '☆☆☆'}</div>
-      `;
-      card.addEventListener('click', () => {
+    for (let i = 1; i <= count; i++) {
+      const btn = document.createElement('button');
+      btn.className = `level-select-btn ${i === this.currentLevelNum ? 'active' : ''}`;
+      btn.textContent = i;
+      btn.addEventListener('click', () => {
         this.audio.playClick();
         this.closeModal('levels-modal');
         this.loadLevel(this.currentTier, i);
       });
-      grid.appendChild(card);
+      grid.appendChild(btn);
     }
+
+    document.getElementById('levels-modal')?.classList.add('show');
   }
 
-  openLeaderboardModal() {
-    this.audio.playClick();
-    const modal = document.getElementById('leaderboard-modal');
-    const list = document.getElementById('leaderboard-list');
-    if (!modal || !list) return;
+  async openLeaderboardModal() {
+    const listEl = document.getElementById('leaderboard-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="padding:20px; text-align:center;">Loading global rankings...</div>';
 
-    modal.classList.add('show');
-    list.innerHTML = '<div class="loading-spinner">Loading global rankings...</div>';
+    document.getElementById('leaderboard-modal')?.classList.add('show');
+    const ranks = await window.supabaseService.getLeaderboard(15);
+    listEl.innerHTML = '';
 
-    window.supabaseService.getLeaderboard(25).then(players => {
-      if (!players || players.length === 0) {
-        list.innerHTML = '<div class="empty-state">No rankings yet. Play a level to rank #1!</div>';
-        return;
-      }
-
-      list.innerHTML = players.map((p, idx) => `
-        <div class="leaderboard-row ${idx === 0 ? 'rank-1' : ''}">
-          <div class="row-rank">#${idx + 1}</div>
-          <div class="row-name">${p.username || 'Archer'}</div>
-          <div class="row-tier tier-${(p.rank_tier || 'bronze').toLowerCase()}">${p.rank_tier || 'Bronze'}</div>
-          <div class="row-score">${(p.high_score || 0).toLocaleString()} PTS</div>
+    ranks.forEach((p, index) => {
+      const item = document.createElement('div');
+      item.className = 'leader-row';
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      item.innerHTML = `
+        <div class="leader-rank">${medal}</div>
+        <div class="leader-info">
+          <div class="leader-name">${p.username || 'Anonymous Archer'}</div>
+          <div class="leader-sub">Level ${p.highest_level || 1} • ${p.tier || 'BRONZE'}</div>
         </div>
-      `).join('');
+        <div class="leader-score">${(p.total_score || 0).toLocaleString()} PTS</div>
+      `;
+      listEl.appendChild(item);
     });
   }
 
   openAuthModal() {
-    this.audio.playClick();
-    const modal = document.getElementById('auth-modal');
-    if (modal) modal.classList.add('show');
+    document.getElementById('auth-modal')?.classList.add('show');
   }
 
   closeModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.classList.remove('show');
+    document.getElementById(id)?.classList.remove('show');
+  }
+
+  updateUserNavbar() {
+    const user = window.supabaseService.getCurrentUser();
+    const navUsername = document.getElementById('nav-username');
+    const navTier = document.getElementById('nav-user-tier');
+    const btnAuth = document.getElementById('btn-open-auth');
+    const btnSignout = document.getElementById('btn-signout');
+
+    if (user && user.username) {
+      if (navUsername) navUsername.textContent = user.username;
+      if (navTier) navTier.textContent = (user.tier || 'BRONZE').toUpperCase();
+      if (btnAuth) btnAuth.style.display = 'none';
+      if (btnSignout) btnSignout.style.display = 'block';
+    } else {
+      if (navUsername) navUsername.textContent = 'Guest Player';
+      if (btnAuth) btnAuth.style.display = 'block';
+      if (btnSignout) btnSignout.style.display = 'none';
+    }
   }
 }
 
-// Global Startup
-window.addEventListener('DOMContentLoaded', async () => {
-  await window.supabaseService.init();
+// Instantiate on DOM load
+window.addEventListener('DOMContentLoaded', () => {
   window.game = new ArrowPuzzleGame();
   window.game.init();
-
-  window.addEventListener('auth-state-changed', () => {
-    if (window.game) window.game.updateUserNavbar();
-  });
 });
