@@ -396,6 +396,7 @@ class CanvasGameRenderer {
   setMap(map) {
     this.map = map;
     this.runoutArray = [];
+    this.totalDt = 0;
     this.errorHighlightIndex = -1;
     this.errorHighlightUntil = 0;
     this.hintHighlightIndex = -1;
@@ -743,6 +744,8 @@ class ArrowPuzzleGame {
     this.lives = 3;
     this.maxLives = 3;
     this.moveHistory = [];
+    this.isLevelFinished = false;
+    this.isGameOver = false;
     this.timerSeconds = 300;
     this.timerInterval = null;
     this.lastFrameTime = performance.now();
@@ -769,9 +772,13 @@ class ArrowPuzzleGame {
 
   startLoop() {
     const loop = (now) => {
-      const dt = (now - this.lastFrameTime) / 1000;
-      this.lastFrameTime = now;
-      this.renderer.update(Math.min(dt, 0.1));
+      try {
+        const dt = (now - this.lastFrameTime) / 1000;
+        this.lastFrameTime = now;
+        this.renderer.update(Math.min(dt, 0.1));
+      } catch (err) {
+        console.warn("[Game loop update]:", err);
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -924,6 +931,12 @@ class ArrowPuzzleGame {
   }
 
   loadLevel(tier, levelNum) {
+    this.isLevelFinished = false;
+    this.isGameOver = false;
+    this.closeModal('victory-modal');
+    this.closeModal('gameover-modal');
+    this.closeModal('levels-modal');
+
     this.currentTier = tier;
     this.currentLevelNum = levelNum;
     const levelStr = window.getLevel(tier, levelNum);
@@ -934,6 +947,10 @@ class ArrowPuzzleGame {
     this.moveHistory = [];
     this.lives = this.maxLives;
 
+    if (this.currentMode === 'challenge') {
+      this.startChallengeTimer();
+    }
+
     if (this.levelBadge) this.levelBadge.textContent = `LEVEL ${levelNum}`;
     if (this.tierBadge) {
       this.tierBadge.textContent = tier.toUpperCase();
@@ -941,9 +958,16 @@ class ArrowPuzzleGame {
     }
 
     this.updateStats();
+    this.renderer.draw();
   }
 
   loadRandomLevel() {
+    this.isLevelFinished = false;
+    this.isGameOver = false;
+    this.closeModal('victory-modal');
+    this.closeModal('gameover-modal');
+    this.closeModal('levels-modal');
+
     this.currentLevelNum = Math.floor(Math.random() * 50) + 1;
     let width = 20, height = 20, target = 30, minL = 6, maxL = 18;
     if (this.currentTier === 'easy') { width = 14; height = 14; target = 16; minL = 5; maxL = 14; }
@@ -959,6 +983,7 @@ class ArrowPuzzleGame {
 
     if (this.levelBadge) this.levelBadge.textContent = `RANDOM`;
     this.updateStats();
+    this.renderer.draw();
   }
 
   startChallengeTimer() {
@@ -981,7 +1006,7 @@ class ArrowPuzzleGame {
   }
 
   handleCellTap(gridIndex) {
-    if (!this.map || this.lives <= 0) return;
+    if (!this.map || this.lives <= 0 || this.isLevelFinished || this.isGameOver) return;
 
     const result = this.map.userAction(gridIndex);
     if (result >= 0) {
@@ -1066,6 +1091,8 @@ class ArrowPuzzleGame {
   }
 
   handleVictory() {
+    if (this.isLevelFinished) return;
+    this.isLevelFinished = true;
     this.stopTimer();
     this.audio.playVictorySound();
 
@@ -1081,14 +1108,20 @@ class ArrowPuzzleGame {
 
     const starsElem = document.getElementById('modal-win-stars') || document.getElementById('modal-stars');
     if (starsElem) starsElem.textContent = '⭐'.repeat(stars);
-    document.getElementById('modal-win-moves').textContent = this.moveCount;
-    document.getElementById('modal-win-score').textContent = this.score;
+    const winMoves = document.getElementById('modal-win-moves');
+    if (winMoves) winMoves.textContent = this.moveCount;
+    const winScore = document.getElementById('modal-win-score');
+    if (winScore) winScore.textContent = this.score;
 
     const modal = document.getElementById('victory-modal');
     if (modal) modal.classList.add('show');
 
     // Submit score to Supabase
-    window.supabaseService?.submitLevelComplete(this.currentTier, this.currentLevelNum, this.score);
+    try {
+      window.supabaseService?.submitLevelComplete?.(this.currentTier, this.currentLevelNum, this.score);
+    } catch (e) {
+      console.warn("[supabase submit error]:", e);
+    }
 
     // Also notify ASP.NET Core Backend Web API
     try {
@@ -1108,6 +1141,8 @@ class ArrowPuzzleGame {
   }
 
   handleGameOver() {
+    if (this.isGameOver) return;
+    this.isGameOver = true;
     this.stopTimer();
     const modal = document.getElementById('gameover-modal');
     if (modal) modal.classList.add('show');
@@ -1178,27 +1213,43 @@ class ArrowPuzzleGame {
   }
 
   updateUserNavbar() {
-    const user = window.supabaseService.getCurrentUser();
-    const navUsername = document.getElementById('nav-username');
-    const navTier = document.getElementById('nav-user-tier');
-    const btnAuth = document.getElementById('btn-open-auth');
-    const btnSignout = document.getElementById('btn-signout');
+    try {
+      const user = window.supabaseService?.getCurrentUser?.();
+      const navUsername = document.getElementById('nav-username');
+      const navTier = document.getElementById('nav-user-tier');
+      const btnAuth = document.getElementById('btn-open-auth');
+      const btnSignout = document.getElementById('btn-signout');
 
-    if (user && user.username) {
-      if (navUsername) navUsername.textContent = user.username;
-      if (navTier) navTier.textContent = (user.tier || 'BRONZE').toUpperCase();
-      if (btnAuth) btnAuth.style.display = 'none';
-      if (btnSignout) btnSignout.style.display = 'block';
-    } else {
-      if (navUsername) navUsername.textContent = 'Guest Player';
-      if (btnAuth) btnAuth.style.display = 'block';
-      if (btnSignout) btnSignout.style.display = 'none';
+      if (user && user.username) {
+        if (navUsername) navUsername.textContent = user.username;
+        if (navTier) navTier.textContent = (user.tier || 'BRONZE').toUpperCase();
+        if (btnAuth) btnAuth.style.display = 'none';
+        if (btnSignout) btnSignout.style.display = 'block';
+      } else {
+        if (navUsername) navUsername.textContent = 'Guest Player';
+        if (navTier) navTier.textContent = 'BRONZE';
+        if (btnAuth) btnAuth.style.display = 'block';
+        if (btnSignout) btnSignout.style.display = 'none';
+      }
+    } catch (e) {
+      console.warn("[updateUserNavbar error]:", e);
     }
   }
 }
 
 // Instantiate on DOM load
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  if (window.supabaseService?.init) {
+    try {
+      await window.supabaseService.init();
+    } catch (e) {
+      console.warn("[supabase init]:", e);
+    }
+  }
   window.game = new ArrowPuzzleGame();
   window.game.init();
+
+  window.addEventListener('auth-state-changed', () => {
+    window.game?.updateUserNavbar();
+  });
 });

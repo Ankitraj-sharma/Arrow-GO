@@ -567,7 +567,7 @@ body {
   background: rgba(4, 8, 18, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   z-index: 999;
@@ -577,6 +577,7 @@ body {
 }
 
 .modal-overlay.show {
+  display: flex;
   opacity: 1;
   pointer-events: auto;
 }

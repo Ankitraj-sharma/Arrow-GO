@@ -129,10 +129,13 @@ class SupabaseService {
     }
 
     try {
+      // Clean redirect URL without hashes or query parameters
+      const redirectUrl = window.location.origin + window.location.pathname;
+
       const { data, error } = await this.client.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.href
+          redirectTo: redirectUrl
         }
       });
 
@@ -270,6 +273,35 @@ class SupabaseService {
 
   getLevelStars(tier, levelId) {
     return parseInt(localStorage.getItem(`arrowgo_stars_${tier}_${levelId}`) || '0', 10);
+  }
+
+  // --- GET CURRENT USER PROFILE ---
+  getCurrentUser() {
+    if (this.profile) {
+      return {
+        id: this.profile.id,
+        username: this.profile.username || 'Archer_101',
+        tier: this.profile.rank_tier || 'BRONZE',
+        high_score: this.profile.high_score || 0,
+        elo: this.profile.elo_rating || 1000
+      };
+    }
+    if (this.currentUser) {
+      return {
+        id: this.currentUser.id,
+        username: this.currentUser.user_metadata?.username || this.currentUser.email?.split('@')[0] || 'Archer_101',
+        tier: 'BRONZE',
+        high_score: 0,
+        elo: 1000
+      };
+    }
+    return null;
+  }
+
+  // --- SUBMIT LEVEL COMPLETE ---
+  async submitLevelComplete(tier, levelNum, score) {
+    this.saveLevelStars(tier, levelNum, 3);
+    return await this.submitScore(score, true, 50);
   }
 }
 
