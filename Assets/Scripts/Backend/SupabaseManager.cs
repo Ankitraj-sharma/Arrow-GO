@@ -19,10 +19,10 @@ namespace ArrowGo.Backend
 
         [Header("Supabase Cloud Credentials")]
         [Tooltip("Your Supabase Project URL")]
-        [SerializeField] private string supabaseUrl = "https://btuxqfkomiqbwzlgyfit.supabase.co";
+        [SerializeField] private string supabaseUrl = "https://rpyckuskyuahthjlrtky.supabase.co";
 
         [Tooltip("Your Supabase Anon / Public Key")]
-        [SerializeField] private string supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0dXhxZmtvbWlxYnd6bGd5Zml0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDY1OTgsImV4cCI6MjEwNTcyMjU5OH0.CBu7W2KCUiLf0NDcTli51zvAFiKZKkWabmQDxG4jZAc";
+        [SerializeField] private string supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJweWNrdXNreXVhaHRoamxydGt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4NDczMzMsImV4cCI6MjEwNzQyMzMzM30.XCSvZJzKKkmgDmghJu135P_Ltimx_BdFDrNkG6lQ49U";
 
         public PlayerProfile CurrentProfile { get; private set; }
         public bool IsInitialized { get; private set; }
@@ -67,7 +67,7 @@ namespace ArrowGo.Backend
 
                 await FetchOrCreateProfileAsync(playerId, username);
                 IsInitialized = true;
-                Debug.Log("<color=green>[Supabase] Connected to project: btuxqfkomiqbwzlgyfit</color>");
+                Debug.Log("<color=green>[Supabase] Connected to project: rpyckuskyuahthjlrtky</color>");
             }
             catch (Exception ex)
             {

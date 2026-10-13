@@ -183,7 +183,7 @@ Here is the chronological engineering progression followed to build ArrowGo from
 
 ## 🌐 Supabase Cloud Configuration
 
-- **Project URL**: `https://btuxqfkomiqbwzlgyfit.supabase.co`
+- **Project URL**: `https://rpyckuskyuahthjlrtky.supabase.co`
 - **Target Table**: `public.arrow_profiles`
 - **SQL Schema & Migrations**: [`sql/schema.sql`](sql/schema.sql)
 - **Stored Procedure**: `public.submit_arrow_match_result(player_id, match_score, is_win, xp_earned)`

@@ -852,37 +852,65 @@ class ArrowPuzzleGame {
     });
 
     // Auth Actions
+    document.getElementById('user-pill-btn')?.addEventListener('click', () => {
+      if (!window.supabaseService?.isLoggedIn?.()) {
+        this.openAuthModal();
+      }
+    });
+
     document.getElementById('btn-google-login')?.addEventListener('click', () => {
       window.supabaseService.signInWithGoogle();
     });
 
     document.getElementById('btn-submit-email-auth')?.addEventListener('click', async () => {
-      const email = document.getElementById('auth-email').value;
+      const email = document.getElementById('auth-email').value.trim();
       const pwd = document.getElementById('auth-password').value;
-      const uname = document.getElementById('auth-username').value;
+      const uname = document.getElementById('auth-username').value.trim();
       const isSignup = document.getElementById('auth-tab-signup').classList.contains('active');
+      const errEl = document.getElementById('auth-error-msg');
+      const submitBtn = document.getElementById('btn-submit-email-auth');
+
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
 
       if (!email || !pwd) {
-        alert("Please enter email and password");
+        if (errEl) { errEl.textContent = 'Please enter both email and password'; errEl.style.display = 'block'; }
+        else alert("Please enter both email and password");
         return;
       }
 
+      if (pwd.length < 6) {
+        if (errEl) { errEl.textContent = 'Password must be at least 6 characters'; errEl.style.display = 'block'; }
+        else alert("Password must be at least 6 characters");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Connecting...';
+
       if (isSignup) {
         const res = await window.supabaseService.signUpWithEmail(email, pwd, uname);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Account';
+
         if (res.success) {
-          alert("Account created successfully!");
           this.closeModal('auth-modal');
           this.updateUserNavbar();
+          alert("Account created successfully! Welcome to Arrow-GO.");
         } else {
-          alert("Sign up error: " + res.error);
+          if (errEl) { errEl.textContent = res.error || 'Sign up failed'; errEl.style.display = 'block'; }
+          else alert("Sign up error: " + res.error);
         }
       } else {
         const res = await window.supabaseService.signInWithEmail(email, pwd);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+
         if (res.success) {
           this.closeModal('auth-modal');
           this.updateUserNavbar();
         } else {
-          alert("Login error: " + res.error);
+          if (errEl) { errEl.textContent = res.error || 'Invalid email or password'; errEl.style.display = 'block'; }
+          else alert("Login error: " + res.error);
         }
       }
     });
@@ -892,6 +920,8 @@ class ArrowPuzzleGame {
       document.getElementById('auth-tab-signup').classList.remove('active');
       document.getElementById('auth-username-group').style.display = 'none';
       document.getElementById('btn-submit-email-auth').textContent = 'Sign In';
+      const errEl = document.getElementById('auth-error-msg');
+      if (errEl) errEl.style.display = 'none';
     });
 
     document.getElementById('auth-tab-signup')?.addEventListener('click', (e) => {
@@ -899,9 +929,12 @@ class ArrowPuzzleGame {
       document.getElementById('auth-tab-signin').classList.remove('active');
       document.getElementById('auth-username-group').style.display = 'block';
       document.getElementById('btn-submit-email-auth').textContent = 'Create Account';
+      const errEl = document.getElementById('auth-error-msg');
+      if (errEl) errEl.style.display = 'none';
     });
 
     document.getElementById('btn-signout')?.addEventListener('click', async () => {
+      this.audio.playClick();
       await window.supabaseService.signOut();
       this.updateUserNavbar();
     });
@@ -1214,21 +1247,28 @@ class ArrowPuzzleGame {
 
   updateUserNavbar() {
     try {
+      const isLogged = window.supabaseService?.isLoggedIn?.();
       const user = window.supabaseService?.getCurrentUser?.();
       const navUsername = document.getElementById('nav-username');
       const navTier = document.getElementById('nav-user-tier');
       const btnAuth = document.getElementById('btn-open-auth');
       const btnSignout = document.getElementById('btn-signout');
 
-      if (user && user.username) {
+      if (isLogged && user && user.username) {
         if (navUsername) navUsername.textContent = user.username;
-        if (navTier) navTier.textContent = (user.tier || 'BRONZE').toUpperCase();
+        if (navTier) {
+          navTier.textContent = (user.tier || 'BRONZE').toUpperCase();
+          navTier.className = `user-tier-pill tier-${(user.tier || 'bronze').toLowerCase()}`;
+        }
         if (btnAuth) btnAuth.style.display = 'none';
-        if (btnSignout) btnSignout.style.display = 'block';
+        if (btnSignout) btnSignout.style.display = 'inline-block';
       } else {
         if (navUsername) navUsername.textContent = 'Guest Player';
-        if (navTier) navTier.textContent = 'BRONZE';
-        if (btnAuth) btnAuth.style.display = 'block';
+        if (navTier) {
+          navTier.textContent = 'GUEST';
+          navTier.className = 'user-tier-pill tier-bronze';
+        }
+        if (btnAuth) btnAuth.style.display = 'inline-block';
         if (btnSignout) btnSignout.style.display = 'none';
       }
     } catch (e) {

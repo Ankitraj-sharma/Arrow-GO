@@ -2,8 +2,8 @@
 // SUPABASE BACKEND - AUTHENTICATION (GOOGLE + EMAIL), PROFILES & LEADERBOARD
 // =========================================================================
 
-const SUPABASE_URL = "https://btuxqfkomiqbwzlgyfit.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0dXhxZmtvbWlxYnd6bGd5Zml0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDY1OTgsImV4cCI6MjEwNTcyMjU5OH0.CBu7W2KCUiLf0NDcTli51zvAFiKZKkWabmQDxG4jZAc";
+const SUPABASE_URL = "https://rpyckuskyuahthjlrtky.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJweWNrdXNreXVhaHRoamxydGt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4NDczMzMsImV4cCI6MjEwNzQyMzMzM30.XCSvZJzKKkmgDmghJu135P_Ltimx_BdFDrNkG6lQ49U";
 
 class SupabaseService {
   constructor() {
@@ -40,6 +40,8 @@ class SupabaseService {
             window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
           } else {
             this.currentUser = null;
+            this.profile = null;
+            window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: null }));
           }
         });
       } catch (err) {
@@ -47,22 +49,10 @@ class SupabaseService {
       }
     }
 
-    // Fallback to Guest Account
-    return await this.initGuestProfile();
-  }
-
-  async initGuestProfile() {
-    let guestId = localStorage.getItem('arrowgo_guest_id');
-    let guestName = localStorage.getItem('arrowgo_guest_name');
-
-    if (!guestId) {
-      guestId = 'guest_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
-      guestName = 'Player_' + Math.floor(1000 + Math.random() * 9000);
-      localStorage.setItem('arrowgo_guest_id', guestId);
-      localStorage.setItem('arrowgo_guest_name', guestName);
-    }
-
-    return await this.loadOrCreateProfile(guestId, guestName);
+    // Unauthenticated Guest state
+    this.currentUser = null;
+    this.profile = null;
+    return null;
   }
 
   async loadOrCreateProfile(userId, defaultUsername) {
@@ -162,11 +152,13 @@ class SupabaseService {
       });
 
       if (error) throw error;
-      if (data.user) {
-        this.currentUser = data.user;
-        await this.loadOrCreateProfile(data.user.id, username || email.split('@')[0]);
+        if (data.session) {
+          this.currentUser = data.user;
+          await this.loadOrCreateProfile(data.user.id, username || email.split('@')[0]);
+          window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
+        }
       }
-      return { success: true, user: data.user };
+      return { success: true, user: data.user, session: data.session };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -175,7 +167,7 @@ class SupabaseService {
   // --- EMAIL SIGN IN ---
   async signInWithEmail(email, password) {
     this.initClient();
-    if (!this.client) return;
+    if (!this.client) return { success: false, error: 'Database initializing. Please retry in a moment.' };
 
     try {
       const { data, error } = await this.client.auth.signInWithPassword({
@@ -187,6 +179,7 @@ class SupabaseService {
       if (data.user) {
         this.currentUser = data.user;
         await this.loadOrCreateProfile(data.user.id, data.user.user_metadata?.username || email.split('@')[0]);
+        window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
       }
       return { success: true, user: data.user };
     } catch (err) {
@@ -197,15 +190,26 @@ class SupabaseService {
   // --- SIGN OUT ---
   async signOut() {
     if (this.client) {
-      await this.client.auth.signOut();
+      try {
+        await this.client.auth.signOut();
+      } catch (err) {
+        console.warn("[SignOut Error]:", err);
+      }
     }
     this.currentUser = null;
-    return await this.initGuestProfile();
+    this.profile = null;
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: null }));
+    return null;
   }
 
   // --- SUBMIT MATCH SCORE & ELO ---
   async submitScore(score, isWin = true, xpEarned = 50) {
-    if (!this.profile) return;
+    if (!this.currentUser || !this.profile) {
+      // Unauthenticated Guest: save high score locally
+      const prev = parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10);
+      if (score > prev) localStorage.setItem('arrowgo_high_score', score);
+      return null;
+    }
 
     if (score > this.profile.high_score) {
       this.profile.high_score = score;
@@ -275,27 +279,22 @@ class SupabaseService {
     return parseInt(localStorage.getItem(`arrowgo_stars_${tier}_${levelId}`) || '0', 10);
   }
 
+  // --- CHECK IF USER IS AUTHENTICATED ---
+  isLoggedIn() {
+    return !!this.currentUser;
+  }
+
   // --- GET CURRENT USER PROFILE ---
   getCurrentUser() {
-    if (this.profile) {
-      return {
-        id: this.profile.id,
-        username: this.profile.username || 'Archer_101',
-        tier: this.profile.rank_tier || 'BRONZE',
-        high_score: this.profile.high_score || 0,
-        elo: this.profile.elo_rating || 1000
-      };
-    }
-    if (this.currentUser) {
-      return {
-        id: this.currentUser.id,
-        username: this.currentUser.user_metadata?.username || this.currentUser.email?.split('@')[0] || 'Archer_101',
-        tier: 'BRONZE',
-        high_score: 0,
-        elo: 1000
-      };
-    }
-    return null;
+    if (!this.currentUser) return null;
+    return {
+      id: this.currentUser.id,
+      email: this.currentUser.email,
+      username: this.profile?.username || this.currentUser.user_metadata?.username || this.currentUser.email?.split('@')[0] || 'Player',
+      tier: this.profile?.rank_tier || 'BRONZE',
+      high_score: this.profile?.high_score || 0,
+      elo: this.profile?.elo_rating || 1000
+    };
   }
 
   // --- SUBMIT LEVEL COMPLETE ---

@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Arrow-GO Database Schema & Backend Architecture
 -- Backend: Supabase (PostgreSQL 15+)
--- Project Ref: btuxqfkomiqbwzlgyfit
+-- Project Ref: rpyckuskyuahthjlrtky
 -- ============================================================================
 
 -- 1. Create Arrow Profiles Table (Supports both Supabase Auth Users and Guest IDs)
