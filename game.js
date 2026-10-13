@@ -895,7 +895,11 @@ class ArrowPuzzleGame {
       if (res && res.error) {
         const errEl = document.getElementById('player-tag-error-msg') || document.getElementById('auth-error-msg');
         if (errEl) {
-          errEl.innerHTML = `⚠️ <strong>Google Sign-In is not configured in Supabase.</strong><br>👉 Simply enter your <strong>Player Name</strong> above and click <strong>Play & Sync Profile</strong>!`;
+          if (res.error.isProviderDisabled) {
+            errEl.innerHTML = `⚠️ <strong>Google Sign-In is not configured in Supabase.</strong><br>👉 Simply enter your <strong>Player Name</strong> above and click <strong>Play & Sync Profile</strong>!`;
+          } else {
+            errEl.innerHTML = `⚠️ Google Sign-In error: ${res.error.message || 'Please try again'}`;
+          }
           errEl.style.display = 'block';
         }
         const nameInput = document.getElementById('player-tag-name');
