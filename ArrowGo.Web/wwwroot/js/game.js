@@ -794,6 +794,7 @@ class ArrowPuzzleGame {
         btn.classList.add('active');
         const mode = btn.dataset.mode;
         this.currentMode = mode;
+        this.score = 0;
         if (mode === 'main') {
           this.stopTimer();
           this.loadLevel(this.currentTier, 1);
@@ -815,6 +816,7 @@ class ArrowPuzzleGame {
         btn.classList.add('active');
         this.currentTier = btn.dataset.tier;
         this.currentLevelNum = 1;
+        this.score = 0;
         this.loadLevel(this.currentTier, this.currentLevelNum);
       });
     });
@@ -824,6 +826,7 @@ class ArrowPuzzleGame {
     document.getElementById('btn-undo')?.addEventListener('click', () => this.undoMove());
     document.getElementById('btn-reset')?.addEventListener('click', () => {
       this.audio.playClick();
+      this.score = 0;
       this.loadLevel(this.currentTier, this.currentLevelNum);
     });
 
@@ -849,6 +852,7 @@ class ArrowPuzzleGame {
     document.getElementById('btn-retry-level')?.addEventListener('click', () => {
       this.audio.playClick();
       this.closeModal('gameover-modal');
+      this.score = 0;
       this.loadLevel(this.currentTier, this.currentLevelNum);
     });
 
@@ -1231,6 +1235,11 @@ class ArrowPuzzleGame {
     if (mistakes === 1) stars = 2;
     else if (mistakes >= 2) stars = 1;
 
+    // Bonus points for clearing the level based on stars
+    const starBonus = stars === 3 ? 100 : (stars === 2 ? 50 : 25);
+    this.score += starBonus;
+    this.updateStats();
+
     const starsElem = document.getElementById('modal-win-stars') || document.getElementById('modal-stars');
     if (starsElem) starsElem.textContent = '⭐'.repeat(stars);
     const winMoves = document.getElementById('modal-win-moves');
@@ -1243,7 +1252,9 @@ class ArrowPuzzleGame {
 
     // Submit score to Supabase
     try {
-      window.supabaseService?.submitLevelComplete?.(this.currentTier, this.currentLevelNum, this.score);
+      window.supabaseService?.submitLevelComplete?.(this.currentTier, this.currentLevelNum, this.score, stars).then(() => {
+        this.updateUserNavbar();
+      });
     } catch (e) {
       console.warn("[supabase submit error]:", e);
     }
@@ -1271,6 +1282,14 @@ class ArrowPuzzleGame {
     this.stopTimer();
     const modal = document.getElementById('gameover-modal');
     if (modal) modal.classList.add('show');
+
+    try {
+      window.supabaseService?.submitScore?.(this.score, false, 15, this.currentLevelNum).then(() => {
+        this.updateUserNavbar();
+      });
+    } catch (e) {
+      console.warn("[supabase gameover submit error]:", e);
+    }
   }
 
   nextLevel() {
@@ -1296,6 +1315,7 @@ class ArrowPuzzleGame {
       btn.addEventListener('click', () => {
         this.audio.playClick();
         this.closeModal('levels-modal');
+        this.score = 0;
         this.loadLevel(this.currentTier, i);
       });
       grid.appendChild(btn);
@@ -1307,23 +1327,40 @@ class ArrowPuzzleGame {
   async openLeaderboardModal() {
     const listEl = document.getElementById('leaderboard-list');
     if (!listEl) return;
-    listEl.innerHTML = '<div style="padding:20px; text-align:center;">Loading global rankings...</div>';
+    listEl.innerHTML = '<div style="padding:24px; text-align:center; color:#94a3b8;">Loading global rankings...</div>';
 
     document.getElementById('leaderboard-modal')?.classList.add('show');
-    const ranks = await window.supabaseService.getLeaderboard(15);
+    const ranks = await window.supabaseService.getLeaderboard(25);
     listEl.innerHTML = '';
+
+    if (!ranks || ranks.length === 0) {
+      listEl.innerHTML = '<div style="padding:24px; text-align:center; color:#94a3b8;">No ranked archers yet. Play a match to be first!</div>';
+      return;
+    }
+
+    const currentUserId = window.supabaseService?.currentUser?.id || window.supabaseService?.profile?.id;
 
     ranks.forEach((p, index) => {
       const item = document.createElement('div');
-      item.className = 'leader-row';
+      const isMe = currentUserId && (p.id === currentUserId);
+      item.className = `leader-row ${isMe ? 'is-current-user' : ''}`;
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      const scoreVal = (p.high_score !== undefined && p.high_score !== null) ? p.high_score : (p.total_score || 0);
+      const levelVal = p.current_level || p.highest_level || 1;
+      const tierVal = (p.rank_tier || p.tier || 'BRONZE').toUpperCase();
+      const eloVal = p.elo_rating || 1000;
+      const youBadge = isMe ? `<span style="font-size:10px; background:var(--brand); color:#07131a; padding:1px 6px; border-radius:4px; font-weight:800; margin-left:6px;">YOU</span>` : '';
+
       item.innerHTML = `
         <div class="leader-rank">${medal}</div>
         <div class="leader-info">
-          <div class="leader-name">${p.username || 'Anonymous Archer'}</div>
-          <div class="leader-sub">Level ${p.highest_level || 1} • ${p.tier || 'BRONZE'}</div>
+          <div class="leader-name">
+            <span>${p.username || 'Anonymous Archer'}</span>
+            ${youBadge}
+          </div>
+          <div class="leader-sub">Level ${levelVal} • ${tierVal} (${eloVal.toLocaleString()} ELO)</div>
         </div>
-        <div class="leader-score">${(p.total_score || 0).toLocaleString()} PTS</div>
+        <div class="leader-score">${scoreVal.toLocaleString()} PTS</div>
       `;
       listEl.appendChild(item);
     });

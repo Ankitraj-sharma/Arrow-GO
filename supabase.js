@@ -323,32 +323,42 @@ class SupabaseService {
   }
 
   // --- SUBMIT MATCH SCORE & ELO ---
-  async submitScore(score, isWin = true, xpEarned = 50) {
+  async submitScore(score, isWin = true, xpEarned = 50, levelNum = null) {
+    const prevLocalHigh = parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10);
+    if (score > prevLocalHigh) {
+      localStorage.setItem('arrowgo_high_score', score);
+    }
+    const currentLocalGames = parseInt(localStorage.getItem('arrowgo_guest_games') || '0', 10) + 1;
+    localStorage.setItem('arrowgo_guest_games', currentLocalGames);
+
+    if (isWin) {
+      const currentLocalWins = parseInt(localStorage.getItem('arrowgo_guest_wins') || '0', 10) + 1;
+      localStorage.setItem('arrowgo_guest_wins', currentLocalWins);
+      if (levelNum) {
+        const currentLocalLevel = Math.max(parseInt(localStorage.getItem('arrowgo_guest_level') || '1', 10), levelNum + 1);
+        localStorage.setItem('arrowgo_guest_level', currentLocalLevel);
+      }
+    }
+
     if (!this.currentUser || !this.profile) {
-      // Unauthenticated Guest: save high score locally
-      const prev = parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10);
-      if (score > prev) localStorage.setItem('arrowgo_high_score', score);
+      window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: null }));
       return null;
     }
 
-    if (score > this.profile.high_score) {
+    if (score > (this.profile.high_score || 0)) {
       this.profile.high_score = score;
       localStorage.setItem('arrowgo_high_score', score);
     }
     this.profile.games_played = (this.profile.games_played || 0) + 1;
     if (isWin) this.profile.wins = (this.profile.wins || 0) + 1;
     this.profile.xp = (this.profile.xp || 0) + xpEarned;
-
-    // Recalculate Rank Tier
-    if (this.profile.elo_rating >= 2000) this.profile.rank_tier = "Champion";
-    else if (this.profile.elo_rating >= 1500) this.profile.rank_tier = "Diamond";
-    else if (this.profile.elo_rating >= 1200) this.profile.rank_tier = "Gold";
-    else if (this.profile.elo_rating >= 1000) this.profile.rank_tier = "Silver";
-    else this.profile.rank_tier = "Bronze";
+    if (levelNum) {
+      this.profile.current_level = Math.max(this.profile.current_level || 1, levelNum + 1);
+    }
 
     // Call Supabase RPC
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_arrow_match_result`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_arrow_match_result`, {
         method: 'POST',
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -362,17 +372,47 @@ class SupabaseService {
           xp_earned: xpEarned
         })
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          this.profile.high_score = data[0].new_high_score;
+          this.profile.elo_rating = data[0].new_elo;
+          this.profile.rank_tier = data[0].new_rank;
+          this.profile.xp = data[0].new_xp;
+        }
+      }
     } catch (e) {
       console.warn("RPC update logged locally:", e);
     }
 
+    // Also persist level to Supabase if increased
+    if (levelNum && this.profile.id) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?id=eq.${encodeURIComponent(this.profile.id)}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            current_level: this.profile.current_level,
+            updated_at: new Date().toISOString()
+          })
+        });
+      } catch (lvlErr) {
+        console.warn("[Level sync error]:", lvlErr);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
     return this.profile;
   }
 
   // --- GET LEADERBOARD ---
   async getLeaderboard(limit = 50) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?select=*&order=high_score.desc&limit=${limit}`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?select=*&order=high_score.desc,elo_rating.desc&limit=${limit}`, {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
@@ -565,9 +605,10 @@ class SupabaseService {
   }
 
   // --- SUBMIT LEVEL COMPLETE ---
-  async submitLevelComplete(tier, levelNum, score) {
-    this.saveLevelStars(tier, levelNum, 3);
-    return await this.submitScore(score, true, 50);
+  async submitLevelComplete(tier, levelNum, score, stars = 3) {
+    this.saveLevelStars(tier, levelNum, stars);
+    const xpEarned = stars * 35;
+    return await this.submitScore(score, true, xpEarned, levelNum);
   }
 }
 
