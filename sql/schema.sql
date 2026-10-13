@@ -4,9 +4,9 @@
 -- Project Ref: btuxqfkomiqbwzlgyfit
 -- ============================================================================
 
--- 1. Create Arrow Profiles Table
+-- 1. Create Arrow Profiles Table (Supports both Supabase Auth Users and Guest IDs)
 CREATE TABLE IF NOT EXISTS public.arrow_profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
     username TEXT NOT NULL,
     high_score INT DEFAULT 0,
     xp INT DEFAULT 0,
@@ -26,27 +26,23 @@ CREATE INDEX IF NOT EXISTS idx_arrow_elo ON public.arrow_profiles (elo_rating DE
 -- 3. Row-Level Security (RLS) Policies
 ALTER TABLE public.arrow_profiles ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public arrow profiles viewable') THEN
-        CREATE POLICY "Public arrow profiles viewable" 
-        ON public.arrow_profiles FOR SELECT USING (true);
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users update own arrow profile') THEN
-        CREATE POLICY "Users update own arrow profile" 
-        ON public.arrow_profiles FOR UPDATE USING (auth.uid() = id);
-    END IF;
+-- Allow public read access to leaderboard and player profiles
+CREATE POLICY "Public arrow profiles viewable" 
+ON public.arrow_profiles FOR SELECT 
+USING (true);
 
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users insert own arrow profile') THEN
-        CREATE POLICY "Users insert own arrow profile" 
-        ON public.arrow_profiles FOR INSERT WITH CHECK (auth.uid() = id);
-    END IF;
-END $$;
+-- Allow profile creation and updates
+CREATE POLICY "Public arrow profiles insertable" 
+ON public.arrow_profiles FOR INSERT 
+WITH CHECK (true);
+
+CREATE POLICY "Public arrow profiles updatable" 
+ON public.arrow_profiles FOR UPDATE 
+USING (true);
 
 -- 4. Stored Procedure (RPC) for Atomic Score Submission & Elo Ranking
 CREATE OR REPLACE FUNCTION public.submit_arrow_match_result(
-    player_id UUID,
+    player_id TEXT,
     match_score INT,
     is_win BOOLEAN,
     xp_earned INT
