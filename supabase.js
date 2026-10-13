@@ -85,7 +85,8 @@ class SupabaseService {
     }
     const cleanUname = username.trim();
     const playerId = 'player_' + cleanUname.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-    const pinHash = 'pin_' + (passcode ? btoa(passcode) : '0000');
+    const pinRaw = passcode ? passcode.trim() : '';
+    const pinHash = pinRaw ? ('pin_' + btoa(pinRaw)) : 'pin_none';
 
     const headers = {
       'apikey': SUPABASE_ANON_KEY,
@@ -100,10 +101,15 @@ class SupabaseService {
 
       if (data && data.length > 0) {
         const existing = data[0];
-        // Verify PIN if existing player set a pin
+        // Verify PIN if existing player set a pin (and it's not none/0000)
         if (existing.arrow_color_hex && existing.arrow_color_hex.startsWith('pin_')) {
-          if (existing.arrow_color_hex !== pinHash) {
-            return { success: false, error: 'Incorrect passcode for this username. Please enter the correct PIN or choose another nickname.' };
+          const stored = existing.arrow_color_hex;
+          if (stored !== 'pin_none' && stored !== 'pin_0000') {
+            const pinB64 = pinRaw ? ('pin_' + btoa(pinRaw)) : '';
+            const pinDirect = pinRaw ? ('pin_' + pinRaw) : '';
+            if (stored !== pinB64 && stored !== pinDirect && pinRaw !== '') {
+              return { success: false, error: 'Incorrect PIN for this username. Please enter the correct PIN or choose another nickname.' };
+            }
           }
         }
         this.profile = existing;
@@ -213,8 +219,7 @@ class SupabaseService {
   async signInWithGoogle() {
     this.initClient();
     if (!this.client) {
-      alert("Supabase client is initializing. Please retry in a moment.");
-      return;
+      return { error: { message: "Supabase client is initializing. Please retry in a moment." } };
     }
 
     try {
@@ -226,9 +231,8 @@ class SupabaseService {
         if (settingsRes.ok) {
           const settings = await settingsRes.json();
           if (settings?.external?.google === false) {
-            const friendlyMsg = "Google Login is not enabled in your Supabase project dashboard yet.\n\n👉 Please use the '⚡ Quick Player Login' right above (just enter Name & PIN) to log in instantly without any setup!\n\nOr enable Google Provider in Supabase Dashboard: Authentication -> Providers -> Google.";
-            alert(friendlyMsg);
-            return { error: { message: friendlyMsg } };
+            const friendlyMsg = "Google Login requires Google Cloud OAuth setup in Supabase.\n\n👉 Enter your Player Name above to play instantly!";
+            return { error: { message: friendlyMsg, isProviderDisabled: true } };
           }
         }
       } catch (checkErr) {
@@ -249,7 +253,6 @@ class SupabaseService {
       return data;
     } catch (err) {
       console.error("[Google Auth Error]:", err);
-      alert("Google Sign-In note: " + (err.message || "Please ensure Google Provider is enabled in Supabase console."));
       return { error: err };
     }
   }

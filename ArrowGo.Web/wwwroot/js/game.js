@@ -895,9 +895,28 @@ class ArrowPuzzleGame {
       if (res && res.error) {
         const errEl = document.getElementById('player-tag-error-msg') || document.getElementById('auth-error-msg');
         if (errEl) {
-          errEl.textContent = res.error.message || 'Google Provider is not enabled in your Supabase project yet. Please use Quick Player Login above!';
+          errEl.innerHTML = `⚠️ <strong>Google Sign-In is not configured in Supabase.</strong><br>👉 Simply enter your <strong>Player Name</strong> above and click <strong>Play & Sync Profile</strong>!`;
           errEl.style.display = 'block';
         }
+        const nameInput = document.getElementById('player-tag-name');
+        if (nameInput) {
+          nameInput.focus();
+          nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    });
+
+    // Enter key submits player login
+    document.getElementById('player-tag-name')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('btn-submit-player-tag')?.click();
+      }
+    });
+    document.getElementById('player-tag-pin')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('btn-submit-player-tag')?.click();
       }
     });
 
@@ -1278,6 +1297,9 @@ class ArrowPuzzleGame {
 
   openAuthModal() {
     document.getElementById('auth-modal')?.classList.add('show');
+    setTimeout(() => {
+      document.getElementById('player-tag-name')?.focus();
+    }, 150);
   }
 
   closeModal(id) {
