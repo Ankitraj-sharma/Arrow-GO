@@ -135,6 +135,116 @@
     </div>
   </div>
 
+  <!-- PROFILE & CAREER MODAL -->
+  <div class="modal-overlay" id="profile-modal">
+    <div class="modal-content profile-card">
+      <div class="modal-header" style="margin-bottom: 14px;">
+        <h2 class="modal-title">👤 Archer Career Profile</h2>
+        <button class="modal-close-x" id="btn-close-profile">&times;</button>
+      </div>
+
+      <!-- HEADER CARD -->
+      <div class="profile-header-wrap">
+        <div class="profile-avatar-large" id="profile-avatar">🏹</div>
+        <div class="profile-meta">
+          <div class="profile-user-title">
+            <span id="profile-name">Guest Player</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="profile-badge-pill badge-guest" id="profile-badge">GUEST</span>
+            <span style="font-size: 11.5px; color: #64748b;" id="profile-id-sub">Local Play</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TIER & ELO PROGRESS CARD -->
+      <div class="profile-tier-card">
+        <div class="profile-tier-top">
+          <div>
+            <span style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Competitive Tier</span>
+            <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+              <span class="user-tier-pill tier-bronze" id="profile-tier-pill">BRONZE</span>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Elo Rating</span>
+            <div class="profile-elo-val" id="profile-elo-display">1,000 ELO</div>
+          </div>
+        </div>
+        <div class="tier-progress-track">
+          <div class="tier-progress-bar" id="profile-tier-bar" style="width: 25%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 10.5px; color: #64748b; margin-top: 6px;">
+          <span id="tier-floor-lbl">Bronze (1000)</span>
+          <span id="tier-next-lbl">Next: Silver (1200)</span>
+        </div>
+      </div>
+
+      <!-- STATS GRID -->
+      <div class="profile-section-title">
+        <span>📊 Career Statistics</span>
+      </div>
+      <div class="profile-stats-grid">
+        <div class="profile-stat-box">
+          <div class="stat-box-val" id="profile-stat-score">0</div>
+          <div class="stat-box-lbl">High Score</div>
+        </div>
+        <div class="profile-stat-box">
+          <div class="stat-box-val" id="profile-stat-level">1</div>
+          <div class="stat-box-lbl">Highest Level</div>
+        </div>
+        <div class="profile-stat-box">
+          <div class="stat-box-val" id="profile-stat-xp">100</div>
+          <div class="stat-box-lbl">Total XP</div>
+        </div>
+        <div class="profile-stat-box">
+          <div class="stat-box-val" id="profile-stat-wins">0</div>
+          <div class="stat-box-lbl">Total Wins</div>
+        </div>
+        <div class="profile-stat-box">
+          <div class="stat-box-val" id="profile-stat-games">0</div>
+          <div class="stat-box-lbl">Games Played</div>
+        </div>
+        <div class="profile-stat-box">
+          <div class="stat-box-val" id="profile-stat-winrate">0%</div>
+          <div class="stat-box-lbl">Win Rate</div>
+        </div>
+      </div>
+
+      <!-- ARROW COLOR CUSTOMIZATION -->
+      <div class="profile-section-title">
+        <span>🎨 Custom Arrow Color</span>
+      </div>
+      <div class="swatches-row" id="profile-swatches">
+        <button class="color-swatch-btn active" data-color="#42d3e8" style="background: #42d3e8;" title="Cyan Neon"></button>
+        <button class="color-swatch-btn" data-color="#facc15" style="background: #facc15;" title="Cyber Gold"></button>
+        <button class="color-swatch-btn" data-color="#10b981" style="background: #10b981;" title="Emerald Matrix"></button>
+        <button class="color-swatch-btn" data-color="#ec4899" style="background: #ec4899;" title="Neon Pink"></button>
+        <button class="color-swatch-btn" data-color="#a855f7" style="background: #a855f7;" title="Arcane Purple"></button>
+        <button class="color-swatch-btn" data-color="#ef4444" style="background: #ef4444;" title="Crimson"></button>
+      </div>
+
+      <!-- ACHIEVEMENTS SHOWCASE -->
+      <div class="profile-section-title">
+        <span>🏆 Badges & Achievements</span>
+        <span style="font-size: 11px; color: var(--brand);" id="achievements-count">0 / 8 Unlocked</span>
+      </div>
+      <div class="achievements-list" id="profile-achievements-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- PROFILE FOOTER ACTIONS -->
+      <div class="profile-footer-actions">
+        <button class="modal-btn" id="btn-profile-share" style="flex: 1; padding: 10px; font-size: 13.5px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);">
+          🔗 Share Profile
+        </button>
+        <button class="modal-btn" id="btn-profile-auth-action" style="flex: 1; padding: 10px; font-size: 13.5px; background: linear-gradient(135deg, var(--brand), #9af6ff); color: #07131a; font-weight: 700;">
+          ⚡ Sign In to Sync
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- LEADERBOARD MODAL -->
   <div class="modal-overlay" id="leaderboard-modal">
     <div class="modal-content medium">

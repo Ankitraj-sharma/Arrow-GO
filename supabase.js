@@ -406,15 +406,162 @@ class SupabaseService {
 
   // --- GET CURRENT USER PROFILE ---
   getCurrentUser() {
-    if (!this.currentUser) return null;
+    if (!this.currentUser && !this.profile) {
+      // Guest profile from local storage
+      const localHighScore = parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10);
+      const localGames = parseInt(localStorage.getItem('arrowgo_guest_games') || '0', 10);
+      const localWins = parseInt(localStorage.getItem('arrowgo_guest_wins') || '0', 10);
+      const localLevel = parseInt(localStorage.getItem('arrowgo_guest_level') || '1', 10);
+      return {
+        id: 'guest',
+        isGuest: true,
+        email: null,
+        username: 'Guest Player',
+        tier: 'BRONZE',
+        high_score: localHighScore,
+        elo: 1000,
+        xp: 100,
+        games_played: localGames,
+        wins: localWins,
+        current_level: localLevel,
+        arrow_color_hex: localStorage.getItem('arrowgo_arrow_color') || '#42d3e8'
+      };
+    }
     return {
-      id: this.currentUser.id,
-      email: this.currentUser.email,
-      username: this.profile?.username || this.currentUser.user_metadata?.username || this.currentUser.email?.split('@')[0] || 'Player',
-      tier: this.profile?.rank_tier || 'BRONZE',
+      id: this.profile?.id || this.currentUser?.id,
+      isGuest: false,
+      isPlayerTag: !!this.currentUser?.isPlayerTag,
+      isGoogle: !this.currentUser?.isPlayerTag && !!this.currentUser?.email,
+      email: this.currentUser?.email || null,
+      username: this.profile?.username || this.currentUser?.user_metadata?.username || this.currentUser?.email?.split('@')[0] || 'Player',
+      tier: (this.profile?.rank_tier || 'BRONZE').toUpperCase(),
       high_score: this.profile?.high_score || 0,
-      elo: this.profile?.elo_rating || 1000
+      elo: this.profile?.elo_rating || 1000,
+      xp: this.profile?.xp || 100,
+      games_played: this.profile?.games_played || 0,
+      wins: this.profile?.wins || 0,
+      current_level: this.profile?.current_level || 1,
+      arrow_color_hex: (this.profile?.arrow_color_hex && !this.profile.arrow_color_hex.startsWith('pin_')) ? this.profile.arrow_color_hex : (localStorage.getItem('arrowgo_arrow_color') || '#42d3e8'),
+      avatar_url: this.currentUser?.user_metadata?.avatar_url || null,
+      created_at: this.profile?.updated_at || null
     };
+  }
+
+  // --- ACHIEVEMENTS SYSTEM ---
+  getAchievements(stats) {
+    const s = stats || this.getCurrentUser();
+    return [
+      {
+        id: 'first_win',
+        icon: '🎯',
+        title: 'First Strike',
+        desc: 'Solve and clear your first puzzle maze',
+        unlocked: (s.wins >= 1 || s.current_level >= 2 || s.games_played >= 1),
+        progress: (s.wins >= 1 || s.current_level >= 2 || s.games_played >= 1) ? '1/1' : '0/1'
+      },
+      {
+        id: 'score_200',
+        icon: '⚡',
+        title: 'Score Hunter',
+        desc: 'Achieve a High Score of 200 points or more',
+        unlocked: s.high_score >= 200,
+        progress: `${Math.min(s.high_score, 200)}/200`
+      },
+      {
+        id: 'level_5',
+        icon: '🧠',
+        title: 'Path Finder',
+        desc: 'Reach Level 5 in any game mode',
+        unlocked: s.current_level >= 5,
+        progress: `${Math.min(s.current_level, 5)}/5`
+      },
+      {
+        id: 'level_10',
+        icon: '🔮',
+        title: 'Maze Master',
+        desc: 'Reach Level 10 or higher',
+        unlocked: s.current_level >= 10,
+        progress: `${Math.min(s.current_level, 10)}/10`
+      },
+      {
+        id: 'elo_1050',
+        icon: '🛡️',
+        title: 'Bronze Veteran',
+        desc: 'Climb above 1,050 Elo competitive rating',
+        unlocked: s.elo >= 1050,
+        progress: `${Math.min(s.elo, 1050)}/1050`
+      },
+      {
+        id: 'elo_1200',
+        icon: '⚔️',
+        title: 'Silver Champion',
+        desc: 'Reach 1,200+ Elo competitive rating',
+        unlocked: s.elo >= 1200,
+        progress: `${Math.min(s.elo, 1200)}/1200`
+      },
+      {
+        id: 'games_5',
+        icon: '🔥',
+        title: 'Active Archer',
+        desc: 'Play at least 5 matches',
+        unlocked: s.games_played >= 5,
+        progress: `${Math.min(s.games_played, 5)}/5`
+      },
+      {
+        id: 'wins_5',
+        icon: '👑',
+        title: 'Victory Streak',
+        desc: 'Win 5 or more games total',
+        unlocked: s.wins >= 5,
+        progress: `${Math.min(s.wins, 5)}/5`
+      }
+    ];
+  }
+
+  // --- UPDATE PROFILE CUSTOMIZATION ---
+  async updateProfileCustomization(updates) {
+    if (!this.profile) {
+      if (updates.arrow_color_hex) {
+        localStorage.setItem('arrowgo_arrow_color', updates.arrow_color_hex);
+      }
+      return { success: true, profile: this.getCurrentUser() };
+    }
+
+    try {
+      const headers = {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?id=eq.${encodeURIComponent(this.profile.id)}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          this.profile = { ...this.profile, ...data[0] };
+        } else {
+          this.profile = { ...this.profile, ...updates };
+        }
+        if (updates.arrow_color_hex) {
+          localStorage.setItem('arrowgo_arrow_color', updates.arrow_color_hex);
+        }
+        window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
+        return { success: true, profile: this.profile };
+      }
+      return { success: false, error: 'Failed to update profile' };
+    } catch (err) {
+      console.error("[Profile Update Error]:", err);
+      return { success: false, error: err.message };
+    }
   }
 
   // --- SUBMIT LEVEL COMPLETE ---

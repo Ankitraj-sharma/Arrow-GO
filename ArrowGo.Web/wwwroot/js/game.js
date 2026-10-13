@@ -512,7 +512,7 @@ class CanvasGameRenderer {
     const isError = (index === this.errorHighlightIndex && Date.now() < this.errorHighlightUntil);
     const isHint = (index === this.hintHighlightIndex && Date.now() < this.hintHighlightUntil);
 
-    let colorHex = '#0f172a'; // Default mono circuit (arrowsgo.io exact)
+    let colorHex = this.gameApp?.customArrowColor || '#0f172a'; // Default mono circuit or custom profile arrow color
     if (isError) {
       colorHex = '#e24b4b';
     } else if (isHint) {
@@ -739,6 +739,7 @@ class ArrowPuzzleGame {
     this.currentLevelNum = 1;
     this.currentMode = 'main'; // 'main' | 'random' | 'challenge'
     this.colorMode = 'mono';   // 'mono' (classic dark circuit matching arrowsgo.io) | 'colorful'
+    this.customArrowColor = localStorage.getItem('arrowgo_arrow_color') || null;
     this.moveCount = 0;
     this.score = 0;
     this.lives = 3;
@@ -851,11 +852,40 @@ class ArrowPuzzleGame {
       this.loadLevel(this.currentTier, this.currentLevelNum);
     });
 
-    // Auth Actions
+    // Auth & Profile Actions
     document.getElementById('user-pill-btn')?.addEventListener('click', () => {
-      if (!window.supabaseService?.isLoggedIn?.()) {
+      this.openProfileModal();
+    });
+
+    document.getElementById('btn-close-profile')?.addEventListener('click', () => {
+      this.closeModal('profile-modal');
+    });
+
+    document.getElementById('btn-profile-share')?.addEventListener('click', () => {
+      this.shareProfile();
+    });
+
+    document.getElementById('btn-profile-auth-action')?.addEventListener('click', async () => {
+      if (window.supabaseService?.isLoggedIn?.()) {
+        await window.supabaseService.signOut();
+        this.closeModal('profile-modal');
+        this.updateUserNavbar();
+      } else {
+        this.closeModal('profile-modal');
         this.openAuthModal();
       }
+    });
+
+    // Color Swatches in Profile
+    document.querySelectorAll('#profile-swatches .color-swatch-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const color = btn.dataset.color;
+        document.querySelectorAll('#profile-swatches .color-swatch-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.customArrowColor = color;
+        this.renderer.draw();
+        await window.supabaseService?.updateProfileCustomization?.({ arrow_color_hex: color });
+      });
     });
 
     // Instant Player Tag Login (Primary)
@@ -1299,6 +1329,156 @@ class ArrowPuzzleGame {
     });
   }
 
+  openProfileModal() {
+    this.renderProfileModal();
+    document.getElementById('profile-modal')?.classList.add('show');
+  }
+
+  renderProfileModal() {
+    const u = window.supabaseService?.getCurrentUser?.();
+    if (!u) return;
+
+    // Avatar
+    const avatarEl = document.getElementById('profile-avatar');
+    if (avatarEl) {
+      if (u.avatar_url) {
+        avatarEl.innerHTML = `<img src="${u.avatar_url}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+      } else {
+        avatarEl.textContent = '🏹';
+      }
+    }
+
+    // Name & Badges
+    const nameEl = document.getElementById('profile-name');
+    if (nameEl) nameEl.textContent = u.username || 'Guest Player';
+
+    const badgeEl = document.getElementById('profile-badge');
+    const subIdEl = document.getElementById('profile-id-sub');
+    if (badgeEl) {
+      if (u.isGoogle) {
+        badgeEl.className = 'profile-badge-pill badge-google';
+        badgeEl.textContent = 'GOOGLE VERIFIED 🟢';
+      } else if (u.isPlayerTag) {
+        badgeEl.className = 'profile-badge-pill badge-player-tag';
+        badgeEl.textContent = 'PLAYER TAG ⚡';
+      } else {
+        badgeEl.className = 'profile-badge-pill badge-guest';
+        badgeEl.textContent = 'GUEST 👤';
+      }
+    }
+    if (subIdEl) {
+      subIdEl.textContent = u.isGuest ? 'Local Gameplay' : (u.email || ('ID: ' + u.id));
+    }
+
+    // Competitive Tier & Elo Progress
+    const tierPill = document.getElementById('profile-tier-pill');
+    const tier = (u.tier || 'BRONZE').toUpperCase();
+    if (tierPill) {
+      tierPill.textContent = tier;
+      tierPill.className = `user-tier-pill tier-${tier.toLowerCase()}`;
+    }
+
+    const eloEl = document.getElementById('profile-elo-display');
+    const elo = u.elo || 1000;
+    if (eloEl) eloEl.textContent = `${elo.toLocaleString()} ELO`;
+
+    // Tier Progress Bar
+    const tierBar = document.getElementById('profile-tier-bar');
+    const floorLbl = document.getElementById('tier-floor-lbl');
+    const nextLbl = document.getElementById('tier-next-lbl');
+    let floor = 1000, next = 1200, nextTierName = 'Silver';
+    if (elo >= 1600) {
+      floor = 1600; next = 2000; nextTierName = 'Master';
+    } else if (elo >= 1400) {
+      floor = 1400; next = 1600; nextTierName = 'Diamond';
+    } else if (elo >= 1200) {
+      floor = 1200; next = 1400; nextTierName = 'Gold';
+    } else {
+      floor = 1000; next = 1200; nextTierName = 'Silver';
+    }
+
+    const pct = Math.min(Math.max(Math.round(((elo - floor) / (next - floor)) * 100), 5), 100);
+    if (tierBar) tierBar.style.width = `${pct}%`;
+    if (floorLbl) floorLbl.textContent = `${tier} (${floor})`;
+    if (nextLbl) nextLbl.textContent = `Next: ${nextTierName} (${next})`;
+
+    // Career Stats
+    const scoreEl = document.getElementById('profile-stat-score');
+    if (scoreEl) scoreEl.textContent = (u.high_score || 0).toLocaleString();
+    const lvlEl = document.getElementById('profile-stat-level');
+    if (lvlEl) lvlEl.textContent = u.current_level || 1;
+    const xpEl = document.getElementById('profile-stat-xp');
+    if (xpEl) xpEl.textContent = (u.xp || 100).toLocaleString();
+    const winsEl = document.getElementById('profile-stat-wins');
+    if (winsEl) winsEl.textContent = u.wins || 0;
+    const gamesEl = document.getElementById('profile-stat-games');
+    if (gamesEl) gamesEl.textContent = u.games_played || 0;
+    const wr = u.games_played > 0 ? Math.round((u.wins / u.games_played) * 100) : 0;
+    const wrEl = document.getElementById('profile-stat-winrate');
+    if (wrEl) wrEl.textContent = `${wr}%`;
+
+    // Arrow Color Swatches
+    const currentColor = u.arrow_color_hex || '#42d3e8';
+    document.querySelectorAll('#profile-swatches .color-swatch-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.color.toLowerCase() === currentColor.toLowerCase());
+    });
+
+    // Achievements Grid
+    const listEl = document.getElementById('profile-achievements-list');
+    const countEl = document.getElementById('achievements-count');
+    if (listEl) {
+      const achievements = window.supabaseService?.getAchievements?.(u) || [];
+      const unlockedCount = achievements.filter(a => a.unlocked).length;
+      if (countEl) countEl.textContent = `${unlockedCount} / ${achievements.length} Unlocked`;
+
+      listEl.innerHTML = '';
+      achievements.forEach(ach => {
+        const item = document.createElement('div');
+        item.className = `achievement-card ${ach.unlocked ? 'unlocked' : ''}`;
+        item.innerHTML = `
+          <div class="achievement-icon">${ach.icon}</div>
+          <div style="flex: 1; min-width: 0;">
+            <div class="achievement-title">${ach.title} ${ach.unlocked ? '✨' : '🔒'}</div>
+            <div class="achievement-desc">${ach.desc}</div>
+            <div style="font-size: 10px; color: ${ach.unlocked ? '#38bdf8' : '#64748b'}; margin-top: 2px; font-weight: 600;">
+              ${ach.unlocked ? 'COMPLETED' : `Progress: ${ach.progress}`}
+            </div>
+          </div>
+        `;
+        listEl.appendChild(item);
+      });
+    }
+
+    // Action button
+    const authBtn = document.getElementById('btn-profile-auth-action');
+    if (authBtn) {
+      if (u.isGuest) {
+        authBtn.textContent = '⚡ Sign In to Sync';
+        authBtn.style.background = 'linear-gradient(135deg, var(--brand), #9af6ff)';
+        authBtn.style.color = '#07131a';
+      } else {
+        authBtn.textContent = '🚪 Sign Out';
+        authBtn.style.background = 'rgba(239, 68, 68, 0.15)';
+        authBtn.style.color = '#f87171';
+      }
+    }
+  }
+
+  shareProfile() {
+    const u = window.supabaseService?.getCurrentUser?.();
+    const text = `🏹 Arrow-GO Archer: ${u?.username || 'Archer'} | ${u?.tier || 'BRONZE'} Tier (${u?.elo || 1000} ELO) | High Score: ${u?.high_score || 0} PTS! Play now: ${window.location.origin + window.location.pathname}`;
+    navigator.clipboard.writeText(text);
+    const toast = document.getElementById('share-toast');
+    if (toast) {
+      toast.textContent = 'Profile summary copied to clipboard!';
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+        toast.textContent = 'Game link copied to clipboard!';
+      }, 2500);
+    }
+  }
+
   openAuthModal() {
     document.getElementById('auth-modal')?.classList.add('show');
     setTimeout(() => {
@@ -1318,6 +1498,11 @@ class ArrowPuzzleGame {
       const navTier = document.getElementById('nav-user-tier');
       const btnAuth = document.getElementById('btn-open-auth');
       const btnSignout = document.getElementById('btn-signout');
+
+      if (user && user.arrow_color_hex) {
+        this.customArrowColor = user.arrow_color_hex;
+        this.renderer?.draw();
+      }
 
       if (isLogged && user && user.username) {
         if (navUsername) navUsername.textContent = user.username;
