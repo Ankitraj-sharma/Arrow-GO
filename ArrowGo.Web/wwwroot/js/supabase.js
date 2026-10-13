@@ -218,6 +218,23 @@ class SupabaseService {
     }
 
     try {
+      // Check if Google provider is enabled in this Supabase project
+      try {
+        const settingsRes = await fetch(`${SUPABASE_URL}/auth/v1/settings`, {
+          headers: { 'apikey': SUPABASE_ANON_KEY }
+        });
+        if (settingsRes.ok) {
+          const settings = await settingsRes.json();
+          if (settings?.external?.google === false) {
+            const friendlyMsg = "Google Login is not enabled in your Supabase project dashboard yet.\n\n👉 Please use the '⚡ Quick Player Login' right above (just enter Name & PIN) to log in instantly without any setup!\n\nOr enable Google Provider in Supabase Dashboard: Authentication -> Providers -> Google.";
+            alert(friendlyMsg);
+            return { error: { message: friendlyMsg } };
+          }
+        }
+      } catch (checkErr) {
+        console.warn("[Provider check error]:", checkErr);
+      }
+
       // Clean redirect URL without hashes or query parameters
       const redirectUrl = window.location.origin + window.location.pathname;
 
@@ -233,6 +250,7 @@ class SupabaseService {
     } catch (err) {
       console.error("[Google Auth Error]:", err);
       alert("Google Sign-In note: " + (err.message || "Please ensure Google Provider is enabled in Supabase console."));
+      return { error: err };
     }
   }
 

@@ -890,8 +890,15 @@ class ArrowPuzzleGame {
       }
     });
 
-    document.getElementById('btn-google-login')?.addEventListener('click', () => {
-      window.supabaseService.signInWithGoogle();
+    document.getElementById('btn-google-login')?.addEventListener('click', async () => {
+      const res = await window.supabaseService.signInWithGoogle();
+      if (res && res.error) {
+        const errEl = document.getElementById('player-tag-error-msg') || document.getElementById('auth-error-msg');
+        if (errEl) {
+          errEl.textContent = res.error.message || 'Google Provider is not enabled in your Supabase project yet. Please use Quick Player Login above!';
+          errEl.style.display = 'block';
+        }
+      }
     });
 
     document.getElementById('btn-submit-email-auth')?.addEventListener('click', async () => {
