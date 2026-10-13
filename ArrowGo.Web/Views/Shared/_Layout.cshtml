@@ -76,6 +76,27 @@
       </div>
       <p class="modal-subtitle">Save progress, earn Elo ratings, and climb the global rankings.</p>
 
+      <!-- PRIMARY: INSTANT PLAYER LOGIN (RECOMMENDED) -->
+      <div class="player-tag-section" style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(66, 211, 232, 0.25); border-radius: 16px; padding: 18px 16px; margin-bottom: 18px;">
+        <div style="font-size: 13px; font-weight: 700; color: var(--brand); margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <span>⚡</span> QUICK PLAYER LOGIN (NO EMAIL NEEDED)
+        </div>
+        <div class="form-group" style="text-align: left; margin-bottom: 10px;">
+          <label style="font-size: 12px; color: #94a3b8; font-weight: 600; display: block; margin-bottom: 4px;">Player Name / Username</label>
+          <input type="text" id="player-tag-name" placeholder="Enter your name (e.g. Ankit)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; padding: 10px 14px; font-size: 14.5px;">
+        </div>
+        <div class="form-group" style="text-align: left; margin-bottom: 12px;">
+          <label style="font-size: 12px; color: #94a3b8; font-weight: 600; display: block; margin-bottom: 4px;">Secret PIN / Passcode</label>
+          <input type="password" id="player-tag-pin" placeholder="Enter 4-digit PIN (e.g. 1234)" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #fff; padding: 10px 14px; font-size: 14.5px;">
+        </div>
+        <div id="player-tag-error-msg" style="color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; display: none; text-align: left;"></div>
+        <button class="modal-btn" id="btn-submit-player-tag" style="background: linear-gradient(135deg, var(--brand), #9af6ff); font-weight: 800; color: #07131a; padding: 12px; width: 100%; border-radius: 10px; cursor: pointer;">
+          🚀 Play & Sync Profile
+        </button>
+      </div>
+
+      <div class="auth-divider"><span>OR VIA SOCIAL / EMAIL</span></div>
+
       <!-- GOOGLE SIGN IN BUTTON -->
       <button class="google-auth-btn" id="btn-google-login">
         <svg viewBox="0 0 24 24" width="20" height="20">
@@ -87,31 +108,30 @@
         <span>Continue with Google</span>
       </button>
 
-      <div class="auth-divider"><span>OR WITH EMAIL</span></div>
-
-      <!-- TABS -->
-      <div class="auth-tabs">
-        <button class="auth-tab-btn active" id="auth-tab-signin">Sign In</button>
-        <button class="auth-tab-btn" id="auth-tab-signup">Create Account</button>
-      </div>
-
-      <!-- FORM -->
-      <div class="auth-form">
-        <div class="form-group" id="auth-username-group" style="display: none;">
-          <label>Username</label>
-          <input type="text" id="auth-username" placeholder="Choose a name">
+      <!-- EMAIL TABS (OPTIONAL EXPANDABLE) -->
+      <details style="margin-top: 14px; text-align: left; font-size: 13px; color: #94a3b8;">
+        <summary style="font-weight: 600; padding: 6px 0; cursor: pointer; text-align: center;">Sign In with Email & Password</summary>
+        <div style="margin-top: 10px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 12px;">
+          <div class="auth-tabs" style="margin-bottom: 10px;">
+            <button class="auth-tab-btn active" id="auth-tab-signin">Sign In</button>
+            <button class="auth-tab-btn" id="auth-tab-signup">Create Account</button>
+          </div>
+          <div class="form-group" id="auth-username-group" style="display: none; margin-bottom: 8px;">
+            <label style="font-size: 12px;">Username</label>
+            <input type="text" id="auth-username" placeholder="Choose a name" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; padding: 8px 12px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label style="font-size: 12px;">Email</label>
+            <input type="email" id="auth-email" placeholder="you@domain.com" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; padding: 8px 12px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label style="font-size: 12px;">Password</label>
+            <input type="password" id="auth-password" placeholder="••••••••" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff; padding: 8px 12px;">
+          </div>
+          <div id="auth-error-msg" style="color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 10px 0; display: none;"></div>
+          <button class="modal-btn" id="btn-submit-email-auth" style="padding: 10px; width: 100%; font-size: 14px;">Sign In with Email</button>
         </div>
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="auth-email" placeholder="you@domain.com">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="auth-password" placeholder="••••••••">
-        </div>
-        <div id="auth-error-msg" style="color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 10px 0; display: none; text-align: left;"></div>
-        <button class="modal-btn" id="btn-submit-email-auth">Sign In</button>
-      </div>
+      </details>
     </div>
   </div>
 

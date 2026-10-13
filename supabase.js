@@ -22,7 +22,7 @@ class SupabaseService {
   async init() {
     this.initClient();
 
-    // Check if user is logged in
+    // 1. Check if user is logged in via Supabase Auth (OAuth/Email)
     if (this.client) {
       try {
         const { data: { session } } = await this.client.auth.getSession();
@@ -38,7 +38,7 @@ class SupabaseService {
             this.currentUser = session.user;
             await this.loadOrCreateProfile(session.user.id, session.user.user_metadata?.username || session.user.email?.split('@')[0]);
             window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
-          } else {
+          } else if (!this.currentUser || !this.currentUser.isPlayerTag) {
             this.currentUser = null;
             this.profile = null;
             window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: null }));
@@ -49,10 +49,109 @@ class SupabaseService {
       }
     }
 
+    // 2. Check if user logged in via Instant Player Tag in localStorage
+    const savedUser = localStorage.getItem('arrowgo_logged_user');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed.id && parsed.username) {
+          const headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          };
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?id=eq.${encodeURIComponent(parsed.id)}&select=*`, { headers });
+          const data = await res.json();
+          if (data && data.length > 0) {
+            this.profile = data[0];
+            this.currentUser = { id: this.profile.id, username: this.profile.username, isPlayerTag: true };
+            return this.profile;
+          }
+        }
+      } catch (e) {
+        console.warn("[Saved session restore error]:", e);
+      }
+    }
+
     // Unauthenticated Guest state
     this.currentUser = null;
     this.profile = null;
     return null;
+  }
+
+  // --- INSTANT PLAYER TAG LOGIN (NO EMAIL CONFIRMATION NEEDED) ---
+  async loginWithPlayerTag(username, passcode) {
+    if (!username || !username.trim()) {
+      return { success: false, error: 'Please enter a player username' };
+    }
+    const cleanUname = username.trim();
+    const playerId = 'player_' + cleanUname.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    const pinHash = 'pin_' + (passcode ? btoa(passcode) : '0000');
+
+    const headers = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json'
+    };
+
+    try {
+      // 1. Check if player already exists in Supabase
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?id=eq.${encodeURIComponent(playerId)}&select=*`, { headers });
+      const data = await res.json();
+
+      if (data && data.length > 0) {
+        const existing = data[0];
+        // Verify PIN if existing player set a pin
+        if (existing.arrow_color_hex && existing.arrow_color_hex.startsWith('pin_')) {
+          if (existing.arrow_color_hex !== pinHash) {
+            return { success: false, error: 'Incorrect passcode for this username. Please enter the correct PIN or choose another nickname.' };
+          }
+        }
+        this.profile = existing;
+      } else {
+        // 2. Create new profile in Supabase
+        const newProf = {
+          id: playerId,
+          username: cleanUname,
+          high_score: parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10),
+          xp: 100,
+          elo_rating: 1000,
+          rank_tier: "Bronze",
+          arrow_color_hex: pinHash,
+          games_played: 0,
+          wins: 0,
+          current_level: 1,
+          updated_at: new Date().toISOString()
+        };
+
+        const createRes = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles`, {
+          method: 'POST',
+          headers: { ...headers, 'Prefer': 'return=representation' },
+          body: JSON.stringify(newProf)
+        });
+        const created = await createRes.json();
+        this.profile = Array.isArray(created) ? created[0] : newProf;
+      }
+
+      this.currentUser = {
+        id: this.profile.id,
+        username: this.profile.username,
+        email: null,
+        isPlayerTag: true
+      };
+
+      // Save session in localStorage so they stay logged in on refresh
+      localStorage.setItem('arrowgo_logged_user', JSON.stringify({
+        id: this.profile.id,
+        username: this.profile.username,
+        pinHash: pinHash
+      }));
+
+      window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
+      return { success: true, profile: this.profile };
+    } catch (err) {
+      console.error("[Login Error]:", err);
+      return { success: false, error: err.message || 'Login failed' };
+    }
   }
 
   async loadOrCreateProfile(userId, defaultUsername) {
@@ -152,11 +251,10 @@ class SupabaseService {
       });
 
       if (error) throw error;
-        if (data.session) {
-          this.currentUser = data.user;
-          await this.loadOrCreateProfile(data.user.id, username || email.split('@')[0]);
-          window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
-        }
+      if (data.user && data.session) {
+        this.currentUser = data.user;
+        await this.loadOrCreateProfile(data.user.id, username || email.split('@')[0]);
+        window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
       }
       return { success: true, user: data.user, session: data.session };
     } catch (err) {
@@ -189,6 +287,7 @@ class SupabaseService {
 
   // --- SIGN OUT ---
   async signOut() {
+    localStorage.removeItem('arrowgo_logged_user');
     if (this.client) {
       try {
         await this.client.auth.signOut();

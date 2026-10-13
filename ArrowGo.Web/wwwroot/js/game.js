@@ -858,6 +858,38 @@ class ArrowPuzzleGame {
       }
     });
 
+    // Instant Player Tag Login (Primary)
+    document.getElementById('btn-submit-player-tag')?.addEventListener('click', async () => {
+      const uname = document.getElementById('player-tag-name')?.value.trim();
+      const pin = document.getElementById('player-tag-pin')?.value.trim();
+      const errEl = document.getElementById('player-tag-error-msg');
+      const btn = document.getElementById('btn-submit-player-tag');
+
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+      if (!uname) {
+        if (errEl) { errEl.textContent = 'Please enter your Player Name / Nickname'; errEl.style.display = 'block'; }
+        else alert('Please enter your Player Name / Nickname');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Connecting to Supabase...';
+
+      const res = await window.supabaseService.loginWithPlayerTag(uname, pin);
+      btn.disabled = false;
+      btn.textContent = '🚀 Play & Sync Profile';
+
+      if (res.success) {
+        this.closeModal('auth-modal');
+        this.updateUserNavbar();
+        alert(`Logged in as ${res.profile.username}! Your stats and scores are synced to Supabase.`);
+      } else {
+        if (errEl) { errEl.textContent = res.error || 'Login failed'; errEl.style.display = 'block'; }
+        else alert(res.error || 'Login failed');
+      }
+    });
+
     document.getElementById('btn-google-login')?.addEventListener('click', () => {
       window.supabaseService.signInWithGoogle();
     });
