@@ -55,17 +55,39 @@ class SupabaseService {
       try {
         const parsed = JSON.parse(savedUser);
         if (parsed.id && parsed.username) {
-          const headers = {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          };
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?id=eq.${encodeURIComponent(parsed.id)}&select=*`, { headers });
-          const data = await res.json();
-          if (data && data.length > 0) {
-            this.profile = data[0];
-            this.currentUser = { id: this.profile.id, username: this.profile.username, isPlayerTag: true };
-            return this.profile;
+          try {
+            const headers = {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            };
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/arrow_profiles?id=eq.${encodeURIComponent(parsed.id)}&select=*`, { headers });
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.length > 0) {
+                this.profile = data[0];
+                this.currentUser = { id: this.profile.id, username: this.profile.username, isPlayerTag: true };
+                return this.profile;
+              }
+            }
+          } catch (netErr) {
+            console.warn("[Cloud unreachable/paused, restoring local player session]:", netErr);
           }
+
+          // Fallback to offline cached profile so user stays logged in
+          const localHigh = parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10);
+          const localLevel = parseInt(localStorage.getItem('arrowgo_guest_level') || '1', 10);
+          this.profile = {
+            id: parsed.id,
+            username: parsed.username,
+            high_score: localHigh,
+            current_level: localLevel,
+            elo_rating: 1050,
+            rank_tier: "Bronze",
+            xp: 150,
+            isOfflineMode: true
+          };
+          this.currentUser = { id: parsed.id, username: parsed.username, isPlayerTag: true, isOfflineMode: true };
+          return this.profile;
         }
       } catch (e) {
         console.warn("[Saved session restore error]:", e);
@@ -155,8 +177,49 @@ class SupabaseService {
       window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
       return { success: true, profile: this.profile };
     } catch (err) {
-      console.error("[Login Error]:", err);
-      return { success: false, error: err.message || 'Login failed' };
+      console.warn("[Supabase Cloud Unreachable/Paused] Falling back to offline local player:", err);
+      // Graceful local profile fallback so user is NEVER blocked from playing!
+      const localHighScore = parseInt(localStorage.getItem('arrowgo_high_score') || '0', 10);
+      const localLevel = parseInt(localStorage.getItem('arrowgo_guest_level') || '1', 10);
+      const localGames = parseInt(localStorage.getItem('arrowgo_guest_games') || '0', 10);
+      const localWins = parseInt(localStorage.getItem('arrowgo_guest_wins') || '0', 10);
+
+      this.profile = {
+        id: playerId,
+        username: cleanUname,
+        high_score: localHighScore,
+        xp: 150,
+        elo_rating: 1050,
+        rank_tier: "Bronze",
+        arrow_color_hex: "#42d3e8",
+        games_played: localGames,
+        wins: localWins,
+        current_level: localLevel,
+        isOfflineMode: true
+      };
+
+      this.currentUser = {
+        id: playerId,
+        username: cleanUname,
+        email: null,
+        isPlayerTag: true,
+        isOfflineMode: true
+      };
+
+      localStorage.setItem('arrowgo_logged_user', JSON.stringify({
+        id: playerId,
+        username: cleanUname,
+        pinHash: pinHash,
+        isOfflineMode: true
+      }));
+
+      window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: this.profile }));
+      return { 
+        success: true, 
+        profile: this.profile, 
+        isOfflineMode: true,
+        cloudError: err.message 
+      };
     }
   }
 
@@ -237,6 +300,14 @@ class SupabaseService {
         }
       } catch (checkErr) {
         console.warn("[Provider check error]:", checkErr);
+        if (checkErr.name === 'TypeError' || (checkErr.message && checkErr.message.includes('fetch'))) {
+          return {
+            error: {
+              message: "Supabase Project is currently PAUSED or inactive on cloud.\n\nPlease open your Supabase Dashboard (supabase.com/dashboard) and click 'Restore project', or enter your Player Name above to play instantly!",
+              isProjectPaused: true
+            }
+          };
+        }
       }
 
       // Clean redirect URL without hashes or query parameters
@@ -253,7 +324,11 @@ class SupabaseService {
       return data;
     } catch (err) {
       console.error("[Google Auth Error]:", err);
-      return { error: err };
+      const isNet = err.message && (err.message.includes('fetch') || err.message.includes('Network') || err.message.includes('Failed'));
+      const msg = isNet 
+        ? "Supabase Project is currently PAUSED or inactive on cloud.\n\nOpen Supabase Dashboard (supabase.com/dashboard) and click 'Restore project', or enter your Player Name above to play instantly!"
+        : (err.message || 'Login failed');
+      return { error: { message: msg, isProjectPaused: isNet } };
     }
   }
 

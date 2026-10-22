@@ -917,7 +917,11 @@ class ArrowPuzzleGame {
       if (res.success) {
         this.closeModal('auth-modal');
         this.updateUserNavbar();
-        alert(`Logged in as ${res.profile.username}! Your stats and scores are synced to Supabase.`);
+        if (res.isOfflineMode) {
+          alert(`Logged in as ${res.profile.username}!\n\n⚡ Note: Supabase Cloud Database is currently paused, so your stats are saved locally. Once you restore your project at supabase.com, they will sync to the cloud!`);
+        } else {
+          alert(`Logged in as ${res.profile.username}! Your stats and scores are synced to Supabase.`);
+        }
       } else {
         if (errEl) { errEl.textContent = res.error || 'Login failed'; errEl.style.display = 'block'; }
         else alert(res.error || 'Login failed');
@@ -929,7 +933,9 @@ class ArrowPuzzleGame {
       if (res && res.error) {
         const errEl = document.getElementById('player-tag-error-msg') || document.getElementById('auth-error-msg');
         if (errEl) {
-          if (res.error.isProviderDisabled) {
+          if (res.error.isProjectPaused) {
+            errEl.innerHTML = `⏸️ <strong>Supabase Project Paused</strong><br>Aapka Supabase cloud database inactivity ki wajah se pause ho gaya hai.<br><a href="https://supabase.com/dashboard" target="_blank" style="color:var(--brand); text-decoration:underline; font-weight:700;">supabase.com/dashboard</a> par jakar <strong>"Restore project"</strong> click karein.<br><br>👉 Tab tak apna <strong>Player Name</strong> upar daalkar turant login karein!`;
+          } else if (res.error.isProviderDisabled) {
             errEl.innerHTML = `⚠️ <strong>Google Sign-In is not configured in Supabase.</strong><br>👉 Simply enter your <strong>Player Name</strong> above and click <strong>Play & Sync Profile</strong>!`;
           } else {
             errEl.innerHTML = `⚠️ Google Sign-In error: ${res.error.message || 'Please try again'}`;
